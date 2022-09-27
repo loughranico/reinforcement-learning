@@ -4,11 +4,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import time
-from tqdm import tqdm_notebook
+from tqdm import tqdm
 from scipy.spatial.distance import cdist
 import imageio
 from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
+import copy
 
 plt.style.use("seaborn-dark")
 
@@ -130,7 +131,7 @@ class DeliveryEnvironment(object):
         
         if return_img:
             # From https://ndres.me/post/matplotlib-animated-gifs-easily/
-            fig.canvas.draw_idle()
+            fig.canvas.draw()
             image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
             image  = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
             plt.close()
@@ -147,6 +148,7 @@ class DeliveryEnvironment(object):
 
         # Random first stop
         first_stop = np.random.randint(self.n_stops)
+        # first_stop = 0
         self.stops.append(first_stop)
 
         return first_stop
@@ -347,15 +349,22 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
     imgs = []
 
     # Experience replay
-    for i in tqdm_notebook(range(n_episodes)):
+    env_min = copy.deepcopy(env)
+        
+    for i in tqdm(range(n_episodes)):
 
         # Run the episode
         env,agent,episode_reward = run_episode(env,agent,verbose = 0)
+        '''if len(rewards)!=0:
+            if max(rewards) < episode_reward:
+                env_min = copy.deepcopy(env)'''
         rewards.append(episode_reward)
         
         if i % render_each == 0:
             img = env.render(return_img = True)
             imgs.append(img)
+
+        
 
     # Show rewards
     plt.figure(figsize = (15,3))
@@ -366,4 +375,4 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
     # Save imgs as gif
     imageio.mimsave(name,imgs,fps = fps)
 
-    return env,agent
+    return env,agent,env_min
