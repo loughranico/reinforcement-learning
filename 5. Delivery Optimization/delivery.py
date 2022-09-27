@@ -10,6 +10,14 @@ import imageio
 from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
 import copy
+import pandas as pd
+
+import csv
+from collections import defaultdict
+
+
+
+
 
 plt.style.use("seaborn-dark")
 
@@ -34,6 +42,19 @@ class DeliveryEnvironment(object):
         self.stops = []
         self.method = method
 
+        # Importing the data
+        # Potentially need trucks in dict in the main when creating agents 
+        truck_file ="./data/camion.csv"
+        self.trucks = pd.read_csv(truck_file)
+        '''with open(truck_file) as f:
+            r = csv.reader(f)
+            self.d = defaultdict(list)
+            for row in r:
+                self.d[row[0]] = row[1:]'''
+
+        delivery_file ="./data/pedido.csv"
+        self.deliveries = pd.read_csv(delivery_file)
+
         # Generate stops
         self._generate_constraints(**kwargs)
         self._generate_stops()
@@ -56,27 +77,42 @@ class DeliveryEnvironment(object):
 
             self.box = (x_left,x_right,y_bottom,y_top)
             self.traffic_intensity = traffic_intensity 
+        elif self.method == "plan":
+            ## DO STUFF
+            print("TODO")
 
 
 
     def _generate_stops(self):
 
-        if self.method == "traffic_box":
+        if self.method == "plan":
+            print("TODO")
+            self.x_origin = []
+            self.y_origin = []
 
-            points = []
-            while len(points) < self.n_stops:
-                x,y = np.random.rand(2)*self.max_box
-                if not self._is_in_box(x,y,self.box):
-                    points.append((x,y))
+            self.x_dest = []
+            self.y_dest = []
 
-            xy = np.array(points)
 
         else:
-            # Generate geographical coordinates
-            xy = np.random.rand(self.n_stops,2)*self.max_box
+            if self.method == "traffic_box":
 
-        self.x = xy[:,0]
-        self.y = xy[:,1]
+                points = []
+                while len(points) < self.n_stops:
+                    x,y = np.random.rand(2)*self.max_box
+                    if not self._is_in_box(x,y,self.box):
+                        points.append((x,y))
+
+                xy = np.array(points)
+
+            else:
+                # Generate geographical coordinates
+                xy = np.random.rand(self.n_stops,2)*self.max_box
+
+            '''self.x = xy[:,0]
+            self.y = xy[:,1]'''
+            self.x = self.deliveries["lonCarga"]
+            self.y = self.deliveries["latCarga"]
 
 
     def _generate_q_values(self,box_size = 0.2):
@@ -88,6 +124,13 @@ class DeliveryEnvironment(object):
         elif self.method=="time":
             self.q_stops = np.random.rand(self.n_stops,self.n_stops)*self.max_box
             np.fill_diagonal(self.q_stops,0)
+        
+        elif self.method == "plan":
+            ## DO STUFF
+            print("TODO")
+            xy = np.column_stack([self.x,self.y])
+            self.q_stops = cdist(xy,xy)
+
         else:
             raise Exception("Method not recognized")
     
@@ -203,6 +246,10 @@ class DeliveryEnvironment(object):
 
             return base_reward + additional_reward
 
+        elif self.method == "plan":
+            ## DO STUFF
+            print("TODO")
+
 
     @staticmethod
     def _calculate_point(x1,x2,y1,y2,x = None,y = None):
@@ -266,8 +313,40 @@ class DeliveryEnvironment(object):
 
 
 
+class DeliveryQAgent(QAgent):
 
-def run_episode(env,agent,verbose = 1):
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.reset_memory()
+
+    def act(self,s):
+
+        # Get Q Vector
+        q = np.copy(self.Q[s,:])
+
+        # Avoid already visited states
+        q[self.states_memory] = -np.inf
+
+        if np.random.rand() > self.epsilon:
+            a = np.argmax(q)
+        else:
+            a = np.random.choice([x for x in range(self.actions_size) if x not in self.states_memory])
+
+        return a
+
+
+    def remember_state(self,s):
+        self.states_memory.append(s)
+
+    def reset_memory(self):
+        self.states_memory = []
+
+
+
+
+
+
+def run_episode(env:DeliveryEnvironment,agent:DeliveryQAgent,verbose = 1):
 
     s = env.reset()
     agent.reset_memory()
@@ -310,47 +389,15 @@ def run_episode(env,agent,verbose = 1):
 
 
 
-
-
-class DeliveryQAgent(QAgent):
-
-    def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs)
-        self.reset_memory()
-
-    def act(self,s):
-
-        # Get Q Vector
-        q = np.copy(self.Q[s,:])
-
-        # Avoid already visited states
-        q[self.states_memory] = -np.inf
-
-        if np.random.rand() > self.epsilon:
-            a = np.argmax(q)
-        else:
-            a = np.random.choice([x for x in range(self.actions_size) if x not in self.states_memory])
-
-        return a
-
-
-    def remember_state(self,s):
-        self.states_memory.append(s)
-
-    def reset_memory(self):
-        self.states_memory = []
-
-
-
 def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,fps=10):
 
     # Store the rewards
     rewards = []
     imgs = []
 
-    # Experience replay
-    env_min = copy.deepcopy(env)
+    # env_min = copy.deepcopy(env)
         
+    # Experience replay
     for i in tqdm(range(n_episodes)):
 
         # Run the episode
@@ -375,4 +422,4 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
     # Save imgs as gif
     imageio.mimsave(name,imgs,fps = fps)
 
-    return env,agent,env_min
+    return env,agent #,env_min
