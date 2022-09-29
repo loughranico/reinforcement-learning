@@ -12,10 +12,10 @@ filename ="./data/pedido.csv"
     print(data["lonBase"])'''
 
 
-deliveries = pd.read_csv(filename)
+'''deliveries = pd.read_csv(filename)
 
 
-print(deliveries)
+print(deliveries)'''
 
 
 '''with open(filename) as f:
@@ -27,7 +27,7 @@ print(d["A127958B"])'''
 
 
 
-'''# Base Data Science snippet
+# Base Data Science snippet
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -38,7 +38,7 @@ import sys
 sys.path.append("../")
 
 from delivery import *
-env = DeliveryEnvironment(n_stops = 107, max_box = 100)
+env = DeliveryEnvironment(n_stops = 1967, method = "plan")
 
 
 
@@ -46,11 +46,11 @@ env = DeliveryEnvironment(n_stops = 107, max_box = 100)
 env.render()
 
 print(f"The first stop id: {env.stops}")
-print(f"Coordinates are: {env.x[env.stops[0]]} {env.y[env.stops[0]]}")
+#print(f"Coordinates are: {env.x[env.stops[0]]} {env.y[env.stops[0]]}")
 
 
 for i in range(4):
     env.step(i)
     print(f"Stops visited in step {i}: {env.stops}")
 
-env.render()'''
+env.render()

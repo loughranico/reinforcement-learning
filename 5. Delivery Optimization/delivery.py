@@ -1,4 +1,5 @@
 # Base Data Science snippet
+from typing import List
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,6 +15,7 @@ import pandas as pd
 
 import csv
 from collections import defaultdict
+import pyproj
 
 
 
@@ -42,6 +44,9 @@ class DeliveryEnvironment(object):
         self.stops = []
         self.method = method
 
+        # List of deliveries. Unsure if also need the seen deliveries or just 
+        self.to_go = []
+
         # Importing the data
         # Potentially need trucks in dict in the main when creating agents 
         truck_file ="./data/camion.csv"
@@ -58,6 +63,8 @@ class DeliveryEnvironment(object):
         # Generate stops
         self._generate_constraints(**kwargs)
         self._generate_stops()
+        if self.method == "plan":
+            self._generate_trucks()
         self._generate_q_values()
         self.render()
 
@@ -67,7 +74,7 @@ class DeliveryEnvironment(object):
 
     def _generate_constraints(self,box_size = 0.2,traffic_intensity = 5):
 
-        if self.method == "traffic_box":
+        '''if self.method == "traffic_box":
 
             x_left = np.random.rand() * (self.max_box) * (1-box_size)
             y_bottom = np.random.rand() * (self.max_box) * (1-box_size)
@@ -76,22 +83,20 @@ class DeliveryEnvironment(object):
             y_top = y_bottom + np.random.rand() * box_size * self.max_box
 
             self.box = (x_left,x_right,y_bottom,y_top)
-            self.traffic_intensity = traffic_intensity 
-        elif self.method == "plan":
-            ## DO STUFF
-            print("TODO")
+            self.traffic_intensity = traffic_intensity '''
+        #elif self.method == "plan":
+            #TODO
 
 
 
     def _generate_stops(self):
 
         if self.method == "plan":
-            print("TODO")
-            self.x_origin = []
-            self.y_origin = []
+            self.x_origin = self.deliveries["lonCarga"]
+            self.y_origin = self.deliveries["latCarga"]
 
-            self.x_dest = []
-            self.y_dest = []
+            self.x_dest = self.deliveries["lonDescarga"]
+            self.y_dest = self.deliveries["latDescarga"]
 
 
         else:
@@ -109,27 +114,45 @@ class DeliveryEnvironment(object):
                 # Generate geographical coordinates
                 xy = np.random.rand(self.n_stops,2)*self.max_box
 
-            '''self.x = xy[:,0]
-            self.y = xy[:,1]'''
-            self.x = self.deliveries["lonCarga"]
-            self.y = self.deliveries["latCarga"]
+            self.x = xy[:,0]
+            self.y = xy[:,1]
+
+    def _generate_trucks(self):
+
+        self.x_base = self.trucks["lonBase"]
+        self.y_base = self.trucks["latBase"]
+
 
 
     def _generate_q_values(self,box_size = 0.2):
 
         # Generate actual Q Values corresponding to time elapsed between two points
-        if self.method in ["distance","traffic_box"]:
+        if self.method in ["distance"]:
             xy = np.column_stack([self.x,self.y])
             self.q_stops = cdist(xy,xy)
-        elif self.method=="time":
-            self.q_stops = np.random.rand(self.n_stops,self.n_stops)*self.max_box
-            np.fill_diagonal(self.q_stops,0)
         
         elif self.method == "plan":
             ## DO STUFF
-            print("TODO")
-            xy = np.column_stack([self.x,self.y])
-            self.q_stops = cdist(xy,xy)
+            xy_dest = np.column_stack([self.x_dest,self.y_dest])
+            xy_origin = np.column_stack([self.x_origin,self.y_origin])
+
+            
+            # create projections, using a mean (lat, lon) for aeqd
+            lat_0, lon_0 = np.mean(np.append(xy_dest[:,0], xy_origin[:,0])), np.mean(np.append(xy_dest[:,1], xy_origin[:,1]))
+            proj = pyproj.Proj(proj='aeqd', lat_0=lat_0, lon_0=lon_0, x_0=lon_0, y_0=lat_0)
+            WGS84 = pyproj.Proj(init='epsg:4326')
+
+            # transform coordinates
+            projected_c1 = pyproj.transform(WGS84, proj, xy_dest[:,1], xy_dest[:,0])
+            projected_c2 = pyproj.transform(WGS84, proj, xy_origin[:,1], xy_origin[:,0])
+            projected_c1 = np.column_stack(projected_c1)
+            projected_c2 = np.column_stack(projected_c2)
+
+            # calculate pairwise distances in km with both methods
+            sc_dist = cdist(projected_c1, projected_c2)
+
+            self.q_stops = sc_dist/1000 #Metres to KM
+            
 
         else:
             raise Exception("Method not recognized")
@@ -142,31 +165,60 @@ class DeliveryEnvironment(object):
         ax.set_title("Delivery Stops")
 
         # Show stops
-        ax.scatter(self.x,self.y,c = "red",s = 50)
+        if self.method == "plan":
+            ax.scatter(self.x_origin,self.y_origin,c = "red",s = 50)
+            ax.scatter(self.x_dest,self.y_dest,c = "pink",s = 50)
+            ax.scatter(self.x_base,self.y_base,c = "orange",s = 50)
 
-        # Show START
-        if len(self.stops)>0:
-            xy = self._get_xy(initial = True)
-            xytext = xy[0]+0.1,xy[1]-0.05
-            ax.annotate("START",xy=xy,xytext=xytext,weight = "bold")
+            # Show START
+            if len(self.stops)>0:
+                xy = self._get_xy_del(initial = True)
+                xytext = xy[0],xy[1]-0.005
+                ax.annotate("START",xy=xy,xytext=xytext,weight = "bold")
 
-        # Show itinerary
-        if len(self.stops) > 1:
-            ax.plot(self.x[self.stops],self.y[self.stops],c = "blue",linewidth=1,linestyle="--")
-            
-            # Annotate END
-            xy = self._get_xy(initial = False)
-            xytext = xy[0]+0.1,xy[1]-0.05
-            ax.annotate("END",xy=xy,xytext=xytext,weight = "bold")
+            # Show itinerary
+            if len(self.stops) > 1:
+                for i in range(len(self.stops)):
+                    x = [self.x_origin[i],self.x_dest[i]]
+                    y = [self.y_origin[i],self.y_dest[i]]
+                    
+                    ax.plot(x,y,c = "blue",linewidth=1,linestyle="--")
+                    '''if i == 0:
+                        x_ini,y_ini = self._get_xy_del(initial = True)
+                        xx = [x_ini,self.x_origin[i]]
+                        yy = [y_ini,self.y_origin[i]]
+                    else:
+                        xx = [self.x_dest[i-1],self.x_origin[i]]
+                        yy = [self.y_dest[i-1],self.y_origin[i]]
+                    
+                    
+                    ax.plot(xx,yy,c = "green",linewidth=1,linestyle="-")'''
+
+                
+                # Annotate END
+                xy = self._get_xy_del(initial = False)
+                xytext = xy[0],xy[1]-0.005
+                ax.annotate("END",xy=xy,xytext=xytext,weight = "bold")
 
 
-        if hasattr(self,"box"):
-            left,bottom = self.box[0],self.box[2]
-            width = self.box[1] - self.box[0]
-            height = self.box[3] - self.box[2]
-            rect = Rectangle((left,bottom), width, height)
-            collection = PatchCollection([rect],facecolor = "red",alpha = 0.2)
-            ax.add_collection(collection)
+        else:
+            ax.scatter(self.x,self.y,c = "red",s = 50)
+
+
+            # Show START
+            if len(self.stops)>0:
+                xy = self._get_xy(initial = True)
+                xytext = xy[0]+0.1,xy[1]-0.05
+                ax.annotate("START",xy=xy,xytext=xytext,weight = "bold")
+
+            # Show itinerary
+            if len(self.stops) > 1:
+                ax.plot(self.x[self.stops],self.y[self.stops],c = "blue",linewidth=1,linestyle="--")
+                
+                # Annotate END
+                xy = self._get_xy(initial = False)
+                xytext = xy[0]+0.1,xy[1]-0.05
+                ax.annotate("END",xy=xy,xytext=xytext,weight = "bold")
 
 
         plt.xticks([])
@@ -189,6 +241,7 @@ class DeliveryEnvironment(object):
         # Stops placeholder
         self.stops = []
 
+        
         # Random first stop
         first_stop = np.random.randint(self.n_stops)
         # first_stop = 0
@@ -223,17 +276,26 @@ class DeliveryEnvironment(object):
         y = self.y[state]
         return x,y
 
+    def _get_xy_del(self,initial = False):
+        if initial:
+            x = self.x_base[0]
+            y = self.y_base[0]
+        else:
+            x = self.x_dest[self._get_state()]
+            y = self.y_dest[self._get_state()]
+
+        return x,y
+
 
     def _get_reward(self,state,new_state):
         base_reward = self.q_stops[state,new_state]
 
         if self.method == "distance":
             return base_reward
-        elif self.method == "time":
-            return base_reward + np.random.randn()
-        elif self.method == "traffic_box":
 
-            # Additional reward correspond to slowing down in traffic
+        elif self.method == "plan":
+            ## DO STUFF
+            '''# Additional reward correspond to slowing down in traffic
             xs,ys = self.x[state],self.y[state]
             xe,ye = self.x[new_state],self.y[new_state]
             intersections = self._calculate_box_intersection(xs,xe,ys,ye,self.box)
@@ -242,71 +304,12 @@ class DeliveryEnvironment(object):
                 distance_traffic = np.sqrt((i2[1]-i1[1])**2 + (i2[0]-i1[0])**2)
                 additional_reward = distance_traffic * self.traffic_intensity * np.random.rand()
             else:
-                additional_reward = np.random.rand()
+                additional_reward = np.random.rand()'''
 
-            return base_reward + additional_reward
+            return base_reward
 
-        elif self.method == "plan":
-            ## DO STUFF
-            print("TODO")
+            
 
-
-    @staticmethod
-    def _calculate_point(x1,x2,y1,y2,x = None,y = None):
-
-        if y1 == y2:
-            return y1
-        elif x1 == x2:
-            return x1
-        else:
-            a = (y2-y1)/(x2-x1)
-            b = y2 - a * x2
-
-            if x is None:
-                x = (y-b)/a
-                return x
-            elif y is None:
-                y = a*x+b
-                return y
-            else:
-                raise Exception("Provide x or y")
-
-
-    def _is_in_box(self,x,y,box):
-        # Get box coordinates
-        x_left,x_right,y_bottom,y_top = box
-        return x >= x_left and x <= x_right and y >= y_bottom and y <= y_top
-
-
-    def _calculate_box_intersection(self,x1,x2,y1,y2,box):
-
-        # Get box coordinates
-        x_left,x_right,y_bottom,y_top = box
-
-        # Intersections
-        intersections = []
-
-        # Top intersection
-        i_top = self._calculate_point(x1,x2,y1,y2,y=y_top)
-        if i_top > x_left and i_top < x_right:
-            intersections.append((i_top,y_top))
-
-        # Bottom intersection
-        i_bottom = self._calculate_point(x1,x2,y1,y2,y=y_bottom)
-        if i_bottom > x_left and i_bottom < x_right:
-            intersections.append((i_bottom,y_bottom))
-
-        # Left intersection
-        i_left = self._calculate_point(x1,x2,y1,y2,x=x_left)
-        if i_left > y_bottom and i_left < y_top:
-            intersections.append((x_left,i_left))
-
-        # Right intersection
-        i_right = self._calculate_point(x1,x2,y1,y2,x=x_right)
-        if i_right > y_bottom and i_right < y_top:
-            intersections.append((x_right,i_right))
-
-        return intersections
 
 
 
@@ -315,9 +318,12 @@ class DeliveryEnvironment(object):
 
 class DeliveryQAgent(QAgent):
 
-    def __init__(self,*args,**kwargs):
+    def __init__(self,*args,name = "",x_base = 0,y_base = 0,**kwargs):
         super().__init__(*args,**kwargs)
         self.reset_memory()
+        self.name = name
+        self.x_base = x_base
+        self.y_base = y_base
 
     def act(self,s):
 
@@ -352,9 +358,9 @@ def run_episode(env:DeliveryEnvironment,agent:DeliveryQAgent,verbose = 1):
     agent.reset_memory()
 
     max_step = env.n_stops
-    
+
     episode_reward = 0
-    
+
     i = 0
     while i < max_step:
 
@@ -423,3 +429,87 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
     imageio.mimsave(name,imgs,fps = fps)
 
     return env,agent #,env_min
+
+def run_episode_ma(env:DeliveryEnvironment,agents:List[DeliveryQAgent],verbose = 1):
+
+    s = env.reset()
+
+    for agent in agents:
+
+        agent.reset_memory()
+
+    max_step = env.n_stops
+    
+    episode_reward = 0
+    
+    i = 0
+    agent_count = 0
+    while i < max_step:
+
+        # Remember the states
+        agents[agent_count].remember_state(s)
+
+        # Choose an action
+        a = agents[agent_count].act(s)
+        
+        # Take the action, and get the reward from environment
+        s_next,r,done = env.step(a)
+
+        # Tweak the reward
+        r = -1 * r
+        
+        if verbose: print(s_next,r,done)
+        
+        # Update our knowledge in the Q-table
+        agents[agent_count].train(s,a,r,s_next)
+        
+        # Update the caches
+        episode_reward += r
+        s = s_next
+        
+        # If the episode is terminated
+        i += 1
+        agent_count += 1
+        agent_count %= len(agents)
+        if done:
+            break
+            
+    return env,agents,episode_reward
+
+
+
+
+def run_n_episodes_ma(env,agents,name="training.gif",n_episodes=1000,render_each=10,fps=10):
+
+    # Store the rewards
+    rewards = []
+    imgs = []
+
+    # env_min = copy.deepcopy(env)
+        
+    # Experience replay
+    for i in tqdm(range(n_episodes)):
+
+        # Run the episode
+        env,agents,episode_reward = run_episode_ma(env,agents,verbose = 0)
+        '''if len(rewards)!=0:
+            if max(rewards) < episode_reward:
+                env_min = copy.deepcopy(env)'''
+        rewards.append(episode_reward)
+        
+        if i % render_each == 0:
+            img = env.render(return_img = True)
+            imgs.append(img)
+
+        
+
+    # Show rewards
+    plt.figure(figsize = (15,3))
+    plt.title("Rewards over training")
+    plt.plot(rewards)
+    plt.show()
+
+    # Save imgs as gif
+    imageio.mimsave(name,imgs,fps = fps)
+
+    return env,agents #,env_min
