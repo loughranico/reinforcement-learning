@@ -1,4 +1,5 @@
 # Base Data Science snippet
+from datetime import datetime, timedelta
 from typing import List
 import pandas as pd
 import numpy as np
@@ -17,6 +18,7 @@ import csv
 from collections import defaultdict
 import pyproj
 
+from collections import defaultdict
 
 
 
@@ -86,6 +88,10 @@ class DeliveryEnvironment(object):
             self.traffic_intensity = traffic_intensity '''
         #elif self.method == "plan":
             #TODO
+        self.start_date = datetime.strptime("07:00:00 01/08/2022", "%H:%M:%S %d/%m/%Y")
+        self.max_worktime = 540
+        self.daily_worktime = 0
+        self.timed_dels = []
 
 
 
@@ -114,13 +120,27 @@ class DeliveryEnvironment(object):
                 # Generate geographical coordinates
                 xy = np.random.rand(self.n_stops,2)*self.max_box
 
-            self.x = xy[:,0]
-            self.y = xy[:,1]
+            self.x = self.deliveries["lonDescarga"]
+            self.y = self.deliveries["latDescarga"]
+            '''self.x = xy[:,0]
+            self.y = xy[:,1]'''
 
     def _generate_trucks(self):
 
         self.x_base = self.trucks["lonBase"]
         self.y_base = self.trucks["latBase"]
+  
+      
+        # Defining the dict and passing 
+        # lambda as default_factory argument
+        self.truck_dict = defaultdict(dict)
+        truck_file ="./data/camion.csv"
+        with open(truck_file) as f:
+            r = csv.reader(f)
+            for nombre,lon,lat in r:
+                if nombre != "idCamion":
+                    self.truck_dict[nombre] = {"name":nombre,"lon":lon,"lat":lat,"daily_worktime":0}
+        
 
 
 
@@ -156,6 +176,21 @@ class DeliveryEnvironment(object):
 
         else:
             raise Exception("Method not recognized")
+    
+    def extract_csv(self,file_name):
+
+        fieldnames = ['idCamion','idPedido', 'start_date', 'end_date']
+
+        with open(file_name, 'w', encoding='UTF8', newline='') as f:
+            writer = csv.writer(f)
+
+            # write the header
+            writer.writerow(fieldnames)
+
+            # write multiple rows
+            writer.writerows(self.timed_dels)
+        
+        
     
 
     def render(self,return_img = False):
@@ -240,6 +275,7 @@ class DeliveryEnvironment(object):
 
         # Stops placeholder
         self.stops = []
+        self.timed_dels = []
 
         
         # Random first stop
@@ -250,6 +286,7 @@ class DeliveryEnvironment(object):
         return first_stop
 
 
+    #def step(self,destination,truck):
     def step(self,destination):
 
         # Get current state
@@ -259,9 +296,33 @@ class DeliveryEnvironment(object):
         # Get reward for such a move
         reward = self._get_reward(state,new_state)
 
+        # Get reward for such a move
+        delivery_kms = self._get_reward(new_state,new_state)
+
         # Append new_state to stops
         self.stops.append(destination)
         done = len(self.stops) == self.n_stops
+
+
+
+        del_time = (reward+delivery_kms)/70*60
+        unload_time = del_time + 90
+
+        '''if self.truck_dict[truck].daily_worktime+del_time >= self.max_worktime:
+            self.truck_dict[truck]. = del_time
+            agent.start_date = agent.start_date.replace(hour=7, minute=0, second=0)
+            agent.start_date += timedelta(days=1)
+
+            end_date = agent.start_date + timedelta(minutes=unload_time)
+        else:
+            self.truck_dict[truck].daily_worktime += del_time
+            end_date = agent.start_date + timedelta(minutes=unload_time)
+
+
+
+        self.timed_dels.append([self.truck_dict[truck].nombre,self.deliveries.idPedido.iloc[new_state],agent.start_date,end_date])
+
+        agent.start_date=end_date'''
 
         return new_state,reward,done
     
@@ -324,6 +385,9 @@ class DeliveryQAgent(QAgent):
         self.name = name
         self.x_base = x_base
         self.y_base = y_base
+        self.start_date = datetime.strptime("07:00:00 01/08/2022", "%H:%M:%S %d/%m/%Y")
+        self.daily_worktime = 0
+        
 
     def act(self,s):
 
@@ -377,6 +441,12 @@ def run_episode(env:DeliveryEnvironment,agent:DeliveryQAgent,verbose = 1):
         r = -1 * r
         
         if verbose: print(s_next,r,done)
+
+        print(i)
+        print("s = ",s)
+        print("a = ",a)
+        print("s_next = ",s_next)
+        print()
         
         # Update our knowledge in the Q-table
         agent.train(s,a,r,s_next)
@@ -430,6 +500,19 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
 
     return env,agent #,env_min
 
+
+
+'''
+Multi-agent approach doesn't work. At the very least, the approach tried was not useful. It lacked a centralised system that could communicate between agents.
+
+Also multi-agent might not be appropriate because there is no real communication/interaction between agents to achieve the goal.
+Main goals of MAS is cooperation or competition. Neither applies here
+
+What is needed is one sole agent (planner) instead of multiple agents (trucks)
+
+
+
+
 def run_episode_ma(env:DeliveryEnvironment,agents:List[DeliveryQAgent],verbose = 1):
 
     s = env.reset()
@@ -453,7 +536,7 @@ def run_episode_ma(env:DeliveryEnvironment,agents:List[DeliveryQAgent],verbose =
         a = agents[agent_count].act(s)
         
         # Take the action, and get the reward from environment
-        s_next,r,done = env.step(a)
+        s_next,r,done = env.step(a,agents[agent_count])
 
         # Tweak the reward
         r = -1 * r
@@ -492,9 +575,9 @@ def run_n_episodes_ma(env,agents,name="training.gif",n_episodes=1000,render_each
 
         # Run the episode
         env,agents,episode_reward = run_episode_ma(env,agents,verbose = 0)
-        '''if len(rewards)!=0:
+        if len(rewards)!=0:
             if max(rewards) < episode_reward:
-                env_min = copy.deepcopy(env)'''
+                env_min = copy.deepcopy(env)
         rewards.append(episode_reward)
         
         if i % render_each == 0:
@@ -512,4 +595,4 @@ def run_n_episodes_ma(env,agents,name="training.gif",n_episodes=1000,render_each
     # Save imgs as gif
     imageio.mimsave(name,imgs,fps = fps)
 
-    return env,agents #,env_min
+    return env,agents #,env_min'''

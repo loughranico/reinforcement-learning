@@ -33,7 +33,8 @@ agent = DeliveryQAgent(env.observation_space,env.action_space)
 
 #e,a,env_min = run_n_episodes(env,agent,"training_100_stops.gif")
 
-run_n_episodes(env,agent,"training_1967_stops_plan.gif",n_episodes = 10)
+run_n_episodes(env,agent,"training_1967_stops_dist.gif",n_episodes = 1)
 
 env.render()
+env.extract_csv("test.csv")
 #env_min.render()

@@ -26,7 +26,8 @@ with open(truck_file) as f:
 
 #e,a,env_min = run_n_episodes(env,agent,"training_100_stops.gif")
 
-run_n_episodes_ma(env,agents,"training_1967_stops_plan_multiagents.gif",n_episodes = 1)
+run_n_episodes_ma(env,agents,"training_1967_stops_plan_multiagents.gif",n_episodes = 10000)
 
 env.render()
+env.extract_csv("test_multiple.csv")
 #env_min.render()
