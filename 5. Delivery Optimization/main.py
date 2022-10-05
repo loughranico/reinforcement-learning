@@ -28,12 +28,12 @@ for i in range(4):
 env.render()'''
 
 
-env = DeliveryEnvironment(n_stops = 100,method = "distance")
+env = DeliveryEnvironment(n_stops = 10,method = "distance")
 agent = DeliveryQAgent(env.observation_space,env.action_space)
 
 #e,a,env_min = run_n_episodes(env,agent,"training_100_stops.gif")
 
-run_n_episodes(env,agent,"training_100_stops.gif",n_episodes = 2000)
+run_n_episodes(env,agent,"training_10_stops.gif",n_episodes = 2000)
 
 env.render()
 #env_min.render()
