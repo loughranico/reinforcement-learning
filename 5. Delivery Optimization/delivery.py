@@ -442,11 +442,11 @@ def run_episode(env:DeliveryEnvironment,agent:DeliveryQAgent,verbose = 1):
         
         if verbose: print(s_next,r,done)
 
-        print(i)
+        '''print(i)
         print("s = ",s)
         print("a = ",a)
         print("s_next = ",s_next)
-        print()
+        print()'''
         
         # Update our knowledge in the Q-table
         agent.train(s,a,r,s_next)
