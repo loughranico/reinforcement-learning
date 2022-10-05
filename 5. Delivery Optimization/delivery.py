@@ -21,18 +21,22 @@ from rl.agents.q_agent import QAgent
 
 
 class DeliveryEnvironment(object):
-    def __init__(self,n_stops = 10,max_box = 10,method = "distance",**kwargs):
+    def __init__(self,n_stops = 10,n_trucks = 2,max_box = 10,method = "distance",**kwargs):
 
-        print(f"Initialized Delivery Environment with {n_stops} random stops")
+        print(f"Initialized Delivery Environment with {n_stops} random stops and {n_trucks}")
         print(f"Target metric for optimization is {method}")
 
         # Initialization
         self.n_stops = n_stops
+        self.n_trucks = n_trucks
         self.action_space = self.n_stops
         self.observation_space = self.n_stops
+        self.piece_space = self.n_trucks
         self.max_box = max_box
         self.stops = []
         self.method = method
+
+        
 
         # Generate stops
         self._generate_constraints(**kwargs)
@@ -56,7 +60,7 @@ class DeliveryEnvironment(object):
 
             self.box = (x_left,x_right,y_bottom,y_top)
             self.traffic_intensity = traffic_intensity 
-
+        
 
 
     def _generate_stops(self):
@@ -158,7 +162,7 @@ class DeliveryEnvironment(object):
 
         # Get current state
         state = self._get_state()
-        new_state = destination
+        new_state = destination[0]
 
         # Get reward for such a move
         reward = self._get_reward(state,new_state)
@@ -282,8 +286,12 @@ def run_episode(env,agent,verbose = 1):
         # Remember the states
         agent.remember_state(s)
 
+        
+
         # Choose an action
         a = agent.act(s)
+        
+        
         
         # Take the action, and get the reward from environment
         s_next,r,done = env.step(a)
@@ -292,6 +300,8 @@ def run_episode(env,agent,verbose = 1):
         r = -1 * r
         
         if verbose: print(s_next,r,done)
+
+        
         
         # Update our knowledge in the Q-table
         agent.train(s,a,r,s_next)
@@ -321,15 +331,22 @@ class DeliveryQAgent(QAgent):
     def act(self,s):
 
         # Get Q Vector
-        q = np.copy(self.Q[s,:])
+        q = self.Q[s,:,:]
+        
+        
 
         # Avoid already visited states
         q[self.states_memory] = -np.inf
 
         if np.random.rand() > self.epsilon:
-            a = np.argmax(q)
+            #a = np.argmax(q)
+            a = np.unravel_index(np.argmax(a, axis=None), a.shape)
         else:
-            a = np.random.choice([x for x in range(self.actions_size) if x not in self.states_memory])
+            available_actions = [x for x in self.actions if x not in self.states_memory]
+            i = np.random.choice(len(available_actions))
+            a = available_actions[i]
+            
+
 
         return a
 
