@@ -152,20 +152,21 @@ class DeliveryEnvironment(object):
 
         # Random first stop
         first_stop = np.random.randint(self.n_stops)
+        first_truck = np.random.randint(self.n_trucks)
         # first_stop = 0
-        self.stops.append(first_stop)
+        self.stops.append((first_stop,first_truck))
 
-        return first_stop
+        return (first_stop,first_truck)
 
 
     def step(self,destination):
 
         # Get current state
         state = self._get_state()
-        new_state = destination[0]
+        new_state = destination
 
         # Get reward for such a move
-        reward = self._get_reward(state,new_state)
+        reward = self._get_reward(state[0],new_state[0])
 
         # Append new_state to stops
         self.stops.append(destination)
@@ -335,12 +336,25 @@ class DeliveryQAgent(QAgent):
         
         
 
+        print(self.states_memory)
+
+        
+        print(q)
+
+        print(q[self.states_memory])
+
         # Avoid already visited states
         q[self.states_memory] = -np.inf
 
+
+        print(q)
+
+        
+        print(q[self.states_memory])
+
         if np.random.rand() > self.epsilon:
             #a = np.argmax(q)
-            a = np.unravel_index(np.argmax(a, axis=None), a.shape)
+            a = np.unravel_index(np.argmax(q, axis=None), q.shape)
         else:
             available_actions = [x for x in self.actions if x not in self.states_memory]
             i = np.random.choice(len(available_actions))
