@@ -33,7 +33,7 @@ agent = DeliveryQAgent(env.observation_space,env.action_space,env.piece_space)
 
 #e,a,env_min = run_n_episodes(env,agent,"training_100_stops.gif")
 
-run_n_episodes(env,agent,"training_10_stops.gif",n_episodes = 1)
+run_n_episodes(env,agent,"training_100_stops.gif",n_episodes = 1000)
 
 env.render()
 #env_min.render()

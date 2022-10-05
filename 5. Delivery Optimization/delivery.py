@@ -107,7 +107,7 @@ class DeliveryEnvironment(object):
 
         # Show START
         if len(self.stops)>0:
-            for i in self.n_trucks:
+            for i in range(self.n_trucks):
 
                 xy = self._get_xy(initial = True)
                 xytext = xy[0]+0.1,xy[1]-0.05
@@ -115,7 +115,15 @@ class DeliveryEnvironment(object):
 
         # Show itinerary
         if len(self.stops) > 1:
-            ax.plot(self.x[self.stops],self.y[self.stops],c = "blue",linewidth=1,linestyle="--")
+            zero_stops = [z[0] for z in self.stops if z[1]==0 ]
+            one_stops = [z[0] for z in self.stops if z[1]==1 ]
+            ax.plot(self.x[zero_stops],self.y[zero_stops],c = "blue",linewidth=1,linestyle="--")
+
+            
+            ax.plot(self.x[one_stops],self.y[one_stops],c = "green",linewidth=1,linestyle="--")
+
+            '''for stop in self.stops:
+                print(stop)'''
             
             # Annotate END
             xy = self._get_xy(initial = False)
@@ -307,7 +315,7 @@ def run_episode(env,agent,verbose = 1):
         
         
         # Update our knowledge in the Q-table
-        agent.train(s,a,r,s_next)
+        agent.train(s[0],a,r,s_next[0])
         
         # Update the caches
         episode_reward += r
@@ -337,15 +345,21 @@ class DeliveryQAgent(QAgent):
         q = self.Q[s[0],:,:]
 
         # Avoid already visited states
-        q[list(map(list, zip(*self.states_memory)))[0]] = -np.inf
+        print(self.states_memory)
+        print(q[self.states_memory])
+        q[self.states_memory] = -np.inf
 
 
 
         if np.random.rand() > self.epsilon:
             #a = np.argmax(q)
             a = np.unravel_index(np.argmax(q, axis=None), q.shape)
+            '''if a == (0,0):
+                print("q[0,0] = ",q[0,0])
+                
+                print("q[0,1] = ",q[0,1])'''
         else:
-            available_actions = [x for x in self.actions if x not in self.states_memory]
+            available_actions = [x for x in self.actions if x[0] not in self.states_memory]
             i = np.random.choice(len(available_actions))
             a = available_actions[i]
             
@@ -355,7 +369,7 @@ class DeliveryQAgent(QAgent):
 
 
     def remember_state(self,s):
-        self.states_memory.append(s)
+        self.states_memory.append(s[0])
 
     def reset_memory(self):
         self.states_memory = []

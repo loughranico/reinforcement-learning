@@ -57,7 +57,7 @@ class QAgent(Agent):
 
 
     def train(self,s,a,r,s_next):
-        '''print()
+        print()
         print("s = ",s)
         print("a = ",a)
         print("r = ",r)
@@ -70,7 +70,8 @@ class QAgent(Agent):
         print("self.gamma*np.max(self.Q[s_next,a[0],a[1]]) = ",self.gamma*np.max(self.Q[s_next,a[0],a[1]]))
         print("r + self.gamma*np.max(self.Q[s_next,a[0],a[1]]) - self.Q[s,a[0],a[1]] = ",r + self.gamma*np.max(self.Q[s_next,a[0],a[1]]) - self.Q[s,a[0],a[1]])
         print("self.lr * (r + self.gamma*np.max(self.Q[s_next,a[0],a[1]]) - self.Q[s,a[0],a[1]]) = ",self.lr * (r + self.gamma*np.max(self.Q[s_next,a[0],a[1]]) - self.Q[s,a[0],a[1]]))
-        print("self.Q[s,a[0],a[1]] = ",self.Q[s,a[0],a[1]] + self.lr * (r + self.gamma*np.max(self.Q[s_next,a[0],a[1]]) - self.Q[s,a[0],a[1]]))'''
+        print("self.Q[s,a[0],a[1]] = ",self.Q[s,a[0],a[1]] + self.lr * (r + self.gamma*np.max(self.Q[s_next,a[0],a[1]]) - self.Q[s,a[0],a[1]]))
+        print(self.Q)
         
         self.Q[s,a[0],a[1]] = self.Q[s,a[0],a[1]] + self.lr * (r + self.gamma*np.max(self.Q[s_next,a[0],a[1]]) - self.Q[s,a[0],a[1]])
 
