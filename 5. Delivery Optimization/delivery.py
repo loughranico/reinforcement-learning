@@ -107,9 +107,11 @@ class DeliveryEnvironment(object):
 
         # Show START
         if len(self.stops)>0:
-            xy = self._get_xy(initial = True)
-            xytext = xy[0]+0.1,xy[1]-0.05
-            ax.annotate("START",xy=xy,xytext=xytext,weight = "bold")
+            for i in self.n_trucks:
+
+                xy = self._get_xy(initial = True)
+                xytext = xy[0]+0.1,xy[1]-0.05
+                ax.annotate("START",xy=xy,xytext=xytext,weight = "bold")
 
         # Show itinerary
         if len(self.stops) > 1:
@@ -180,7 +182,7 @@ class DeliveryEnvironment(object):
 
 
     def _get_xy(self,initial = False):
-        state = self.stops[0] if initial else self._get_state()
+        state = self.stops[0][0] if initial else self._get_state()[0]
         x = self.x[state]
         y = self.y[state]
         return x,y
@@ -332,25 +334,12 @@ class DeliveryQAgent(QAgent):
     def act(self,s):
 
         # Get Q Vector
-        q = self.Q[s,:,:]
-        
-        
-
-        print(self.states_memory)
-
-        
-        print(q)
-
-        print(q[self.states_memory])
+        q = self.Q[s[0],:,:]
 
         # Avoid already visited states
-        q[self.states_memory] = -np.inf
+        q[list(map(list, zip(*self.states_memory)))[0]] = -np.inf
 
 
-        print(q)
-
-        
-        print(q[self.states_memory])
 
         if np.random.rand() > self.epsilon:
             #a = np.argmax(q)
