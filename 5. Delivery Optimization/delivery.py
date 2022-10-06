@@ -23,7 +23,7 @@ from rl.agents.q_agent import QAgent
 class DeliveryEnvironment(object):
     def __init__(self,n_stops = 10,n_trucks = 2,max_box = 10,method = "distance",**kwargs):
 
-        print(f"Initialized Delivery Environment with {n_stops} random stops and {n_trucks}")
+        print(f"Initialized Delivery Environment with {n_stops} random stops and {n_trucks} trucks")
         print(f"Target metric for optimization is {method}")
 
         # Initialization
@@ -103,7 +103,7 @@ class DeliveryEnvironment(object):
         ax.set_title("Delivery Stops")
 
         # Show stops
-        ax.scatter(self.x,self.y,c = "red",s = 50)
+        ax.scatter(self.x,self.y,c = "orange",s = 50)
 
         # Show START
         if len(self.stops)>0:
@@ -120,7 +120,7 @@ class DeliveryEnvironment(object):
             ax.plot(self.x[zero_stops],self.y[zero_stops],c = "blue",linewidth=1,linestyle="--")
 
             
-            ax.plot(self.x[one_stops],self.y[one_stops],c = "green",linewidth=1,linestyle="--")
+            ax.plot(self.x[one_stops],self.y[one_stops],c = "red",linewidth=1,linestyle="--")
 
             '''for stop in self.stops:
                 print(stop)'''
@@ -342,11 +342,12 @@ class DeliveryQAgent(QAgent):
     def act(self,s):
 
         # Get Q Vector
-        q = self.Q[s[0],:,:]
+        q = np.copy(self.Q[s[0],:,:])
+        
 
         # Avoid already visited states
-        print(self.states_memory)
-        print(q[self.states_memory])
+        # print(self.states_memory)
+        # print(q[self.states_memory])
         q[self.states_memory] = -np.inf
 
 
