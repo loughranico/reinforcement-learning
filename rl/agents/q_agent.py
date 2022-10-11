@@ -15,6 +15,7 @@ https://github.com/theolvs
 
 
 
+from collections import defaultdict
 import os
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -45,10 +46,10 @@ class QAgent(Agent):
         self.gamma = gamma
         self.lr = lr
         self.Q = self.build_model(states_size,actions_size,piece_size)
-        self.actions = []
+        '''self.actions = []
         for x in range(self.actions_size):
             for y in range(self.piece_size):
-                self.actions.append((x,y))
+                self.actions.append((x,y))'''
 
 
     def build_model(self,states_size,actions_size,piece_size):

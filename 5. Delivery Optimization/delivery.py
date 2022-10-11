@@ -103,7 +103,7 @@ class DeliveryEnvironment(object):
         ax.set_title("Delivery Stops")
 
         # Show stops
-        ax.scatter(self.x,self.y,c = "orange",s = 50)
+        ax.scatter(self.x,self.y,c = "black",s = 50)
 
         # Show START
         if len(self.stops)>0:
@@ -115,15 +115,20 @@ class DeliveryEnvironment(object):
 
         # Show itinerary
         if len(self.stops) > 1:
-            zero_stops = [z[0] for z in self.stops if z[1]==0 ]
+            '''zero_stops = [z[0] for z in self.stops if z[1]==0 ]
             one_stops = [z[0] for z in self.stops if z[1]==1 ]
+            two_stops = [z[0] for z in self.stops if z[1]==2 ]
             ax.plot(self.x[zero_stops],self.y[zero_stops],c = "blue",linewidth=1,linestyle="--")
 
             
             ax.plot(self.x[one_stops],self.y[one_stops],c = "red",linewidth=1,linestyle="--")
 
-            '''for stop in self.stops:
-                print(stop)'''
+            
+            ax.plot(self.x[two_stops],self.y[two_stops],c = "black",linewidth=1,linestyle="--")'''
+
+            for i in range(self.n_trucks):
+                t_stops = [z[0] for z in self.stops if z[1]==i ]
+                ax.plot(self.x[t_stops],self.y[t_stops],linewidth=1,linestyle="-")
             
             # Annotate END
             xy = self._get_xy(initial = False)
@@ -360,9 +365,40 @@ class DeliveryQAgent(QAgent):
                 
                 print("q[0,1] = ",q[0,1])'''
         else:
-            available_actions = [x for x in self.actions if x[0] not in self.states_memory]
+            '''available_actions = [x for x in self.actions if x[0] not in self.states_memory]
             i = np.random.choice(len(available_actions))
             a = available_actions[i]
+            
+            # 30 day execution
+            '''
+
+
+
+            #############################
+
+
+            '''a_a = [x for x in range(self.actions_size) if x not in self.states_memory]
+            i = np.random.randint(0,len(a_a))
+            j = np.random.randint(0,self.piece_size)
+            a = (a_a[i],j)
+            
+            # 15 hour execution
+            '''
+
+            #############################
+
+            act_size = np.array(range(self.actions_size))
+            stat_mem = np.array(self.states_memory)
+
+            dif1 = np.setdiff1d(act_size, stat_mem)
+            dif2 = np.setdiff1d(stat_mem, act_size)
+            
+            a_a = np.concatenate((dif1, dif2))
+
+            #a_a = [x for x in range(self.actions_size) if x not in self.states_memory]
+            i = np.random.randint(0,len(a_a))
+            j = np.random.randint(0,self.piece_size)
+            a = (a_a[i],j)
             
 
 
