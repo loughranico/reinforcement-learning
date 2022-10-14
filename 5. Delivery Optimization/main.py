@@ -19,10 +19,10 @@ import pstats
 
 def main(args):
     
-    ### Profiling ###
-    profile = cProfile.Profile()
-    profile.enable()
-    #################
+    # ### Profiling ###
+    # profile = cProfile.Profile()
+    # profile.enable()
+    # #################
     
 
     num_stops = int(args[0])
@@ -39,12 +39,12 @@ def main(args):
     env.render()
 
     
-    ###Profiling for possible paralization###
-    profile.disable()
-    ps = pstats.Stats(profile)
-    ps.sort_stats('tottime', 'calls')
-    ps.print_stats(10)
-    #########################################
+    # ###Profiling for possible paralization###
+    # profile.disable()
+    # ps = pstats.Stats(profile)
+    # ps.sort_stats('tottime', 'calls')
+    # ps.print_stats(10)
+    # #########################################
     
     
 

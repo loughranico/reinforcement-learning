@@ -41,6 +41,7 @@ class DeliveryEnvironment(object):
         # Generate stops
         self._generate_constraints(**kwargs)
         self._generate_stops()
+        self._generate_trucks()
         self._generate_q_values()
         self.render()
 
@@ -82,13 +83,27 @@ class DeliveryEnvironment(object):
         self.x = xy[:,0]
         self.y = xy[:,1]
 
+    def _generate_trucks(self):
+
+        xy = np.random.rand(self.n_trucks,2)*self.max_box
+
+        self.x_base = xy[:,0]
+        self.y_base = xy[:,1]
+
+        self.x = np.concatenate((self.x, self.x_base), axis=None)
+        self.y = np.concatenate((self.y, self.y_base), axis=None)
+
+
+
 
     def _generate_q_values(self,box_size = 0.2):
 
         # Generate actual Q Values corresponding to time elapsed between two points
         if self.method in ["distance","traffic_box"]:
+            
             xy = np.column_stack([self.x,self.y])
             self.q_stops = cdist(xy,xy)
+            # self.q_stops[:,self.n_stops:] = -np.inf
         elif self.method=="time":
             self.q_stops = np.random.rand(self.n_stops,self.n_stops)*self.max_box
             np.fill_diagonal(self.q_stops,0)
@@ -103,18 +118,21 @@ class DeliveryEnvironment(object):
         ax.set_title("Delivery Stops")
 
         # Show stops
-        ax.scatter(self.x,self.y,c = "black",s = 50)
+        ax.scatter(self.x[:self.n_stops],self.y[:self.n_stops],c = "black",s = 50)
+        ax.scatter(self.x[self.n_stops:],self.y[self.n_stops:],c = "orange",s = 50)
 
         # Show START
         if len(self.stops)>0:
             for i in range(self.n_trucks):
 
-                xy = self._get_xy(initial = True)
-                xytext = xy[0]+0.1,xy[1]-0.05
-                ax.annotate("START",xy=xy,xytext=xytext,weight = "bold")
+                # xy = self._get_xy(initial = True)
+                x = self.x[i+self.n_stops]
+                y = self.y[i+self.n_stops]
+                xytext = x+0.1,y-0.05
+                ax.annotate("START",xy=(x,y),xytext=xytext,weight = "bold")
 
         # Show itinerary
-        if len(self.stops) > 1:
+        if len(self.stops) > self.n_trucks:
             '''zero_stops = [z[0] for z in self.stops if z[1]==0 ]
             one_stops = [z[0] for z in self.stops if z[1]==1 ]
             two_stops = [z[0] for z in self.stops if z[1]==2 ]
@@ -166,12 +184,14 @@ class DeliveryEnvironment(object):
         self.stops = []
 
         # Random first stop
-        first_stop = np.random.randint(self.n_stops)
-        first_truck = np.random.randint(self.n_trucks)
-        # first_stop = 0
-        self.stops.append((first_stop,first_truck))
+        for i in range(self.n_trucks):
+            f_stop = i + self.n_stops
+            f_truck = i
+            self.stops.append((f_stop,f_truck))
+        random_truck = np.random.randint(self.n_trucks)
+        truck_stop = random_truck + self.n_stops
 
-        return (first_stop,first_truck)
+        return (truck_stop,random_truck)
 
 
     def step(self,destination):
@@ -185,7 +205,7 @@ class DeliveryEnvironment(object):
 
         # Append new_state to stops
         self.stops.append(destination)
-        done = len(self.stops) == self.n_stops
+        done = len(self.stops) == (self.n_stops+self.n_trucks)
 
         return new_state,reward,done
     
@@ -320,7 +340,10 @@ def run_episode(env,agent,verbose = 1):
         
         
         # Update our knowledge in the Q-table
-        agent.train(s[0],a,r,s_next[0])
+        if s[0] >= env.n_stops:
+            agent.train(env.n_stops,a,r,s_next[0])
+        else:
+            agent.train(s[0],a,r,s_next[0])
         
         # Update the caches
         episode_reward += r
@@ -346,67 +369,95 @@ class DeliveryQAgent(QAgent):
 
     def act(self,s):
 
-        # Get Q Vector
-        q = np.copy(self.Q[s[0],:,:])
-        
+        if s[0] >= self.actions_size:
+            truck_number = s[0] - self.actions_size
+            # Get Q Vector
+            q = np.copy(self.Q[self.actions_size,:,truck_number])
+            
 
-        # Avoid already visited states
-        # print(self.states_memory)
-        # print(q[self.states_memory])
-        q[self.states_memory] = -np.inf
+            # Avoid already visited states
+            q[self.states_memory] = -np.inf
 
+            if np.random.rand() > self.epsilon:
+                a = (np.argmax(q),truck_number)
+            else:
+                act_size = np.array(range(self.actions_size))
+                stat_mem = np.array(self.states_memory)
 
+                a_a = np.setdiff1d(act_size, stat_mem)
 
-        if np.random.rand() > self.epsilon:
-            #a = np.argmax(q)
-            a = np.unravel_index(np.argmax(q, axis=None), q.shape)
-            '''if a == (0,0):
-                print("q[0,0] = ",q[0,0])
-                
-                print("q[0,1] = ",q[0,1])'''
+                #a_a = [x for x in range(self.actions_size) if x not in self.states_memory]
+                i = np.random.randint(0,len(a_a))
+                a = (a_a[i],truck_number)
+
         else:
-            '''available_actions = [x for x in self.actions if x[0] not in self.states_memory]
-            i = np.random.choice(len(available_actions))
-            a = available_actions[i]
+
+
+
+            # Get Q Vector
+            q = np.copy(self.Q[s[0],:,:])
             
-            # 30 day execution
-            '''
+
+            # Avoid already visited states
+            # print(self.states_memory)
+            # print(q[self.states_memory])
+            q[self.states_memory] = -np.inf
 
 
 
-            #############################
+            if np.random.rand() > self.epsilon:
+                #a = np.argmax(q)
+                a = np.unravel_index(np.argmax(q, axis=None), q.shape)
+                
+                
+                '''if a == (0,0):
+                    print("q[0,0] = ",q[0,0])
+                    
+                    print("q[0,1] = ",q[0,1])'''
+            else:
+                '''available_actions = [x for x in self.actions if x[0] not in self.states_memory]
+                i = np.random.choice(len(available_actions))
+                a = available_actions[i]
+                
+                # 30 day execution
+                '''
 
 
-            '''a_a = [x for x in range(self.actions_size) if x not in self.states_memory]
-            i = np.random.randint(0,len(a_a))
-            j = np.random.randint(0,self.piece_size)
-            a = (a_a[i],j)
+
+                #############################
+
+
+                '''a_a = [x for x in range(self.actions_size) if x not in self.states_memory]
+                i = np.random.randint(0,len(a_a))
+                j = np.random.randint(0,self.piece_size)
+                a = (a_a[i],j)
+                
+                # 15 hour execution
+                '''
+
+                #############################
+
             
-            # 15 hour execution
-            '''
+                act_size = np.array(range(self.actions_size))
+                stat_mem = np.array(self.states_memory)
 
-            #############################
+                a_a = np.setdiff1d(act_size, stat_mem)
 
-            act_size = np.array(range(self.actions_size))
-            stat_mem = np.array(self.states_memory)
-
-            dif1 = np.setdiff1d(act_size, stat_mem)
-            dif2 = np.setdiff1d(stat_mem, act_size)
-            
-            a_a = np.concatenate((dif1, dif2))
-
-            #a_a = [x for x in range(self.actions_size) if x not in self.states_memory]
-            i = np.random.randint(0,len(a_a))
-            j = np.random.randint(0,self.piece_size)
-            a = (a_a[i],j)
-            
+                #a_a = [x for x in range(self.actions_size) if x not in self.states_memory]
+                i = np.random.randint(0,len(a_a))
+                j = np.random.randint(0,self.piece_size)
+                a = (a_a[i],j)
+                
 
 
         return a
 
 
     def remember_state(self,s):
-        self.states_memory.append(s[0])
+        if s[0] >= self.actions_size:
+            self.states_memory.append(self.actions_size)
+        else:
+            self.states_memory.append(s[0])
 
     def reset_memory(self):
         self.states_memory = []
@@ -431,9 +482,9 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
                 env_min = copy.deepcopy(env)'''
         rewards.append(episode_reward)
         
-        if i % render_each == 0:
+        '''if i % render_each == 0:
             img = env.render(return_img = True)
-            imgs.append(img)
+            imgs.append(img)'''
 
         
 
@@ -443,7 +494,7 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
     plt.plot(rewards)
     plt.show()
 
-    # Save imgs as gif
-    imageio.mimsave(name,imgs,fps = fps)
+    # # Save imgs as gif
+    # imageio.mimsave(name,imgs,fps = fps)
 
     return env,agent,env_min

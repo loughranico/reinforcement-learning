@@ -45,7 +45,7 @@ class QAgent(Agent):
         self.epsilon_decay = epsilon_decay
         self.gamma = gamma
         self.lr = lr
-        self.Q = self.build_model(states_size,actions_size,piece_size)
+        self.Q = self.build_model(states_size+1,actions_size+1,piece_size)
         '''self.actions = []
         for x in range(self.actions_size):
             for y in range(self.piece_size):
@@ -54,6 +54,7 @@ class QAgent(Agent):
 
     def build_model(self,states_size,actions_size,piece_size):
         Q = np.zeros([states_size,actions_size,piece_size])
+        Q[:,states_size:] = -np.inf
         return Q
 
 
