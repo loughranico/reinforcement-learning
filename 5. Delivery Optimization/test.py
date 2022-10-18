@@ -26,6 +26,24 @@ print(deliveries)'''
 print(d["A127958B"])'''
 
 
+'''
+#env = DeliveryEnvironment(n_stops = 50)
+#env = DeliveryEnvironment(n_stops = 2000, max_box = 1000)
+
+
+
+
+env.render()
+
+print(f"The first stop id: {env.stops}")
+
+for i in range(4):
+    env.step(i)
+    print(f"Stops visited in step {i}: {env.stops}")
+
+env.render()'''
+
+
 
 # Base Data Science snippet
 import pandas as pd

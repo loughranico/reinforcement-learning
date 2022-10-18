@@ -10,31 +10,49 @@ sys.path.append("../")
 
 from delivery import *
 
-'''
-#env = DeliveryEnvironment(n_stops = 50)
-#env = DeliveryEnvironment(n_stops = 2000, max_box = 1000)
+import cProfile
+import pstats
 
 
 
-
-env.render()
-
-print(f"The first stop id: {env.stops}")
-
-for i in range(4):
-    env.step(i)
-    print(f"Stops visited in step {i}: {env.stops}")
-
-env.render()'''
-
-
-env = DeliveryEnvironment(n_stops = 1967,method = "plan")
-agent = DeliveryQAgent(env.observation_space,env.action_space)
-
-#e,a,env_min = run_n_episodes(env,agent,"training_100_stops.gif")
-
-run_n_episodes(env,agent,"training_1967_stops_dist.gif",n_episodes = 1)
-
-env.render()
-env.extract_csv("test.csv")
 #env_min.render()
+
+def main(args):
+    
+    # ### Profiling ###
+    # profile = cProfile.Profile()
+    # profile.enable()
+    # #################
+    
+
+    num_stops = 1967
+    num_trucks = 107
+    iters = int(args[0])
+    
+    env = DeliveryEnvironment(n_stops = num_stops,n_trucks = num_trucks,method = "plan")
+    agent = DeliveryQAgent(env.observation_space,env.action_space,env.piece_space)
+
+    #e,a,env_min = run_n_episodes(env,agent,"training_100_stops.gif")
+
+    run_n_episodes(env,agent,f"training_{num_stops}_stops_{num_trucks}t_{iters}iter.gif",n_episodes = iters)
+
+    env.render()
+    env.extract_csv("test.csv")
+    
+    #env_min.render()
+
+    
+    # ###Profiling for possible paralization###
+    # profile.disable()
+    # ps = pstats.Stats(profile)
+    # ps.sort_stats('tottime', 'calls')
+    # ps.print_stats(10)
+    # #########################################
+    
+    
+
+
+if __name__ == '__main__':
+    args = sys.argv[1:]
+    main(args)
+

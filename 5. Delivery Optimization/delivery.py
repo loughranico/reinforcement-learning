@@ -33,31 +33,26 @@ from rl.agents.q_agent import QAgent
 
 
 class DeliveryEnvironment(object):
-    def __init__(self,n_stops = 10,max_box = 10,method = "distance",**kwargs):
+    def __init__(self,n_stops = 10,n_trucks = 2,max_box = 10,method = "distance",**kwargs):
 
         print(f"Initialized Delivery Environment with {n_stops} random stops")
         print(f"Target metric for optimization is {method}")
 
         # Initialization
         self.n_stops = n_stops
+        self.n_trucks = n_trucks
         self.action_space = self.n_stops
         self.observation_space = self.n_stops
+        self.piece_space = self.n_trucks
         self.max_box = max_box
         self.stops = []
         self.method = method
 
-        # List of deliveries. Unsure if also need the seen deliveries or just 
-        self.to_go = []
 
         # Importing the data
         # Potentially need trucks in dict in the main when creating agents 
         truck_file ="./data/camion.csv"
         self.trucks = pd.read_csv(truck_file)
-        '''with open(truck_file) as f:
-            r = csv.reader(f)
-            self.d = defaultdict(list)
-            for row in r:
-                self.d[row[0]] = row[1:]'''
 
         delivery_file ="./data/pedido.csv"
         self.deliveries = pd.read_csv(delivery_file)
@@ -90,7 +85,6 @@ class DeliveryEnvironment(object):
             #TODO
         self.start_date = datetime.strptime("07:00:00 01/08/2022", "%H:%M:%S %d/%m/%Y")
         self.max_worktime = 540
-        self.daily_worktime = 0
         self.timed_dels = []
 
 
@@ -103,6 +97,22 @@ class DeliveryEnvironment(object):
 
             self.x_dest = self.deliveries["lonDescarga"]
             self.y_dest = self.deliveries["latDescarga"]
+
+            # Defining the dict and passing 
+            # lambda as default_factory argument
+            self.pedido_dict = defaultdict(dict)
+            self.pedido_names = []
+            deliveries_file ="./data/pedido.csv"
+            with open(deliveries_file) as f:
+                r = csv.reader(f)
+                i=0
+                for idPedido,lon,lat,lonDes,latDes,categoria,prio, start,end,last in r:
+                    if idPedido != "idPedido":
+                        self.pedido_names.append(idPedido)
+                        self.pedido_dict[idPedido] = {"num":i,"name":idPedido,"lonCarga":lon,"latCarga":lat,"lonDescarga":lonDes,"latDescarga":latDes,"daily_worktime":0,"start_date":datetime.strptime("07:00:00 01/08/2022", "%H:%M:%S %d/%m/%Y")}
+                        i+=1
+
+            
 
 
         else:
@@ -129,22 +139,40 @@ class DeliveryEnvironment(object):
 
         self.x_base = self.trucks["lonBase"]
         self.y_base = self.trucks["latBase"]
+
   
+        self.x_dest = np.concatenate((self.x_dest, self.x_base), axis=None)
+        self.y_dest = np.concatenate((self.y_dest, self.y_base), axis=None)
+        self.x_origin = np.concatenate((self.x_origin, self.x_base), axis=None)
+        self.y_origin = np.concatenate((self.y_origin, self.y_base), axis=None)
       
         # Defining the dict and passing 
         # lambda as default_factory argument
         self.truck_dict = defaultdict(dict)
+        self.truck_names = []
         truck_file ="./data/camion.csv"
         with open(truck_file) as f:
             r = csv.reader(f)
+            i=0
             for nombre,lon,lat in r:
                 if nombre != "idCamion":
-                    self.truck_dict[nombre] = {"name":nombre,"lon":lon,"lat":lat,"daily_worktime":0}
+                    self.truck_names.append(nombre)
+                    self.truck_dict[nombre] = {"num":i,"name":nombre,"lon":lon,"lat":lat,"daily_worktime":0,"start_date":datetime.strptime("07:00:00 01/08/2022", "%H:%M:%S %d/%m/%Y")}
+                    i+=1
+
+        self.camion_pedidos = defaultdict(list)
+        order_file ="./data/camiones_pedido.csv"
+        with open(order_file) as f:
+            r = csv.reader(f)
+
+            for idPedido,idCamion in r:
+                if idPedido != "idPedido":
+                    self.camion_pedidos[idCamion].append(self.pedido_dict[idPedido]["num"])
         
 
 
 
-    def _generate_q_values(self,box_size = 0.2):
+    def _generate_q_values(self):
 
         # Generate actual Q Values corresponding to time elapsed between two points
         if self.method in ["distance"]:
@@ -207,12 +235,17 @@ class DeliveryEnvironment(object):
 
             # Show START
             if len(self.stops)>0:
-                xy = self._get_xy_del(initial = True)
-                xytext = xy[0],xy[1]-0.005
-                ax.annotate("START",xy=xy,xytext=xytext,weight = "bold")
+                for i in range(self.n_trucks):
+
+                    # x = self.x[i+self.n_stops]
+                    # y = self.y[i+self.n_stops]
+                    x = self.x_base[i]
+                    y = self.y_base[i]
+                    xytext = x+0.01,y-0.005
+                    ax.annotate("START",xy=(x,y),xytext=xytext,weight = "bold")
 
             # Show itinerary
-            if len(self.stops) > 1:
+            if len(self.stops) > self.n_trucks:
                 for i in range(len(self.stops)):
                     x = [self.x_origin[i],self.x_dest[i]]
                     y = [self.y_origin[i],self.y_dest[i]]
@@ -229,11 +262,15 @@ class DeliveryEnvironment(object):
                     
                     ax.plot(xx,yy,c = "green",linewidth=1,linestyle="-")'''
 
+                    '''for i in range(self.n_trucks):
+                t_stops = [z[0] for z in self.stops if z[1]==i ]
+                ax.plot(self.x[t_stops],self.y[t_stops],linewidth=1,linestyle="-")'''
+
                 
-                # Annotate END
-                xy = self._get_xy_del(initial = False)
-                xytext = xy[0],xy[1]-0.005
-                ax.annotate("END",xy=xy,xytext=xytext,weight = "bold")
+                # # Annotate END
+                # xy = self._get_xy_del(initial = False)
+                # xytext = xy[0],xy[1]-0.005
+                # ax.annotate("END",xy=xy,xytext=xytext,weight = "bold")
 
 
         else:
@@ -275,15 +312,16 @@ class DeliveryEnvironment(object):
 
         # Stops placeholder
         self.stops = []
-        self.timed_dels = []
 
-        
         # Random first stop
-        first_stop = np.random.randint(self.n_stops)
-        # first_stop = 0
-        self.stops.append(first_stop)
+        for i in range(self.n_trucks):
+            f_stop = i + self.n_stops
+            f_truck = i
+            self.stops.append((f_stop,f_truck))
+        random_truck = np.random.randint(self.n_trucks)
+        truck_stop = random_truck + self.n_stops
 
-        return first_stop
+        return (truck_stop,random_truck)
 
 
     #def step(self,destination,truck):
@@ -294,35 +332,38 @@ class DeliveryEnvironment(object):
         new_state = destination
 
         # Get reward for such a move
-        reward = self._get_reward(state,new_state)
+        reward = self._get_reward(state[0],new_state[0])
 
         # Get reward for such a move
-        delivery_kms = self._get_reward(new_state,new_state)
+        delivery_kms = self._get_reward(new_state[0],new_state[0])
 
         # Append new_state to stops
         self.stops.append(destination)
-        done = len(self.stops) == self.n_stops
+        done = len(self.stops) == (self.n_stops+self.n_trucks)
 
 
 
+        # Keeping times etc.
         del_time = (reward+delivery_kms)/70*60
         unload_time = del_time + 90
 
-        '''if self.truck_dict[truck].daily_worktime+del_time >= self.max_worktime:
-            self.truck_dict[truck]. = del_time
-            agent.start_date = agent.start_date.replace(hour=7, minute=0, second=0)
-            agent.start_date += timedelta(days=1)
+        truck = self.truck_names[new_state[1]]
 
-            end_date = agent.start_date + timedelta(minutes=unload_time)
+        if (self.truck_dict[truck]["daily_worktime"]+del_time) >= self.max_worktime:
+            self.truck_dict[truck]["daily_worktime"] = del_time
+            self.truck_dict[truck]["start_date"] = self.truck_dict[truck]["start_date"].replace(hour=7, minute=0, second=0)
+            self.truck_dict[truck]["start_date"] += timedelta(days=1)
+
+            end_date = self.truck_dict[truck]["start_date"] + timedelta(minutes=unload_time)
         else:
-            self.truck_dict[truck].daily_worktime += del_time
-            end_date = agent.start_date + timedelta(minutes=unload_time)
+            self.truck_dict[truck]["daily_worktime"] += del_time
+            end_date = self.truck_dict[truck]["start_date"] + timedelta(minutes=unload_time)
 
 
 
-        self.timed_dels.append([self.truck_dict[truck].nombre,self.deliveries.idPedido.iloc[new_state],agent.start_date,end_date])
+        self.timed_dels.append([truck,self.deliveries.idPedido.iloc[new_state[0]],self.truck_dict[truck]["start_date"],end_date])
 
-        agent.start_date=end_date'''
+        self.truck_dict[truck]["start_date"]=end_date
 
         return new_state,reward,done
     
@@ -335,16 +376,6 @@ class DeliveryEnvironment(object):
         state = self.stops[0] if initial else self._get_state()
         x = self.x[state]
         y = self.y[state]
-        return x,y
-
-    def _get_xy_del(self,initial = False):
-        if initial:
-            x = self.x_base[0]
-            y = self.y_base[0]
-        else:
-            x = self.x_dest[self._get_state()]
-            y = self.y_dest[self._get_state()]
-
         return x,y
 
 
@@ -379,34 +410,74 @@ class DeliveryEnvironment(object):
 
 class DeliveryQAgent(QAgent):
 
-    def __init__(self,*args,name = "",x_base = 0,y_base = 0,**kwargs):
+    def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.reset_memory()
-        self.name = name
-        self.x_base = x_base
-        self.y_base = y_base
-        self.start_date = datetime.strptime("07:00:00 01/08/2022", "%H:%M:%S %d/%m/%Y")
-        self.daily_worktime = 0
-        
+        # self.start_date = datetime.strptime("07:00:00 01/08/2022", "%H:%M:%S %d/%m/%Y")
+        # self.daily_worktime = 0
 
-    def act(self,s):
+    def act(self,env:DeliveryEnvironment,s):
 
-        # Get Q Vector
-        q = np.copy(self.Q[s,:])
+        if s[0] >= self.actions_size:
+            truck_number = s[0] - self.actions_size
+            # Get Q Vector
+            q = np.copy(self.Q[self.actions_size,:,truck_number])
+            
 
-        # Avoid already visited states
-        q[self.states_memory] = -np.inf
+            # Avoid already visited states
+            q[self.states_memory] = -np.inf
 
-        if np.random.rand() > self.epsilon:
-            a = np.argmax(q)
+            if np.random.rand() > self.epsilon:
+                a = (np.argmax(q),truck_number)
+            else:
+                # act_size = np.array(range(self.actions_size))
+                idCamion = env.truck_names[s[1]]
+                act_size = np.array(env.camion_pedidos[idCamion])
+                stat_mem = np.array(self.states_memory)
+
+                a_a = np.setdiff1d(act_size, stat_mem)
+
+                #a_a = [x for x in range(self.actions_size) if x not in self.states_memory]
+                i = np.random.randint(0,len(a_a))
+                a = (a_a[i],truck_number)
+
         else:
-            a = np.random.choice([x for x in range(self.actions_size) if x not in self.states_memory])
+            # Get Q Vector
+            q = np.copy(self.Q[s[0],:,:])
+            
 
+            # Avoid already visited states
+            q[self.states_memory] = -np.inf
+
+
+
+            if np.random.rand() > self.epsilon:
+                #a = np.argmax(q)
+                a = np.unravel_index(np.argmax(q, axis=None), q.shape)
+                
+            else:
+
+                j = np.random.randint(0,self.piece_size)
+
+                idCamion = env.truck_names[j]
+                act_size = np.array(env.camion_pedidos[idCamion])
+                
+                # act_size = np.array(range(self.actions_size))
+                stat_mem = np.array(self.states_memory)
+
+                a_a = np.setdiff1d(act_size, stat_mem)
+
+                i = np.random.randint(0,len(a_a))
+                a = (a_a[i],j)
+           
         return a
 
 
     def remember_state(self,s):
-        self.states_memory.append(s)
+        if s[0] >= self.actions_size:
+            self.states_memory.append(self.actions_size)
+        else:
+            self.states_memory.append(s[0])
 
     def reset_memory(self):
         self.states_memory = []
@@ -432,7 +503,7 @@ def run_episode(env:DeliveryEnvironment,agent:DeliveryQAgent,verbose = 1):
         agent.remember_state(s)
 
         # Choose an action
-        a = agent.act(s)
+        a = agent.act(env,s)
         
         # Take the action, and get the reward from environment
         s_next,r,done = env.step(a)
@@ -441,15 +512,13 @@ def run_episode(env:DeliveryEnvironment,agent:DeliveryQAgent,verbose = 1):
         r = -1 * r
         
         if verbose: print(s_next,r,done)
-
-        '''print(i)
-        print("s = ",s)
-        print("a = ",a)
-        print("s_next = ",s_next)
-        print()'''
         
         # Update our knowledge in the Q-table
-        agent.train(s,a,r,s_next)
+        # Check if leaving the base or not
+        if s[0] >= env.n_stops:
+            agent.train(env.n_stops,a,r,s_next[0])
+        else:
+            agent.train(s[0],a,r,s_next[0])
         
         # Update the caches
         episode_reward += r
@@ -483,9 +552,9 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
                 env_min = copy.deepcopy(env)'''
         rewards.append(episode_reward)
         
-        if i % render_each == 0:
+        '''if i % render_each == 0:
             img = env.render(return_img = True)
-            imgs.append(img)
+            imgs.append(img)'''
 
         
 
@@ -495,104 +564,10 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
     plt.plot(rewards)
     plt.show()
 
-    # Save imgs as gif
-    imageio.mimsave(name,imgs,fps = fps)
+    # # Save imgs as gif
+    # imageio.mimsave(name,imgs,fps = fps)
 
     return env,agent #,env_min
 
 
 
-'''
-Multi-agent approach doesn't work. At the very least, the approach tried was not useful. It lacked a centralised system that could communicate between agents.
-
-Also multi-agent might not be appropriate because there is no real communication/interaction between agents to achieve the goal.
-Main goals of MAS is cooperation or competition. Neither applies here
-
-What is needed is one sole agent (planner) instead of multiple agents (trucks)
-
-
-
-
-def run_episode_ma(env:DeliveryEnvironment,agents:List[DeliveryQAgent],verbose = 1):
-
-    s = env.reset()
-
-    for agent in agents:
-
-        agent.reset_memory()
-
-    max_step = env.n_stops
-    
-    episode_reward = 0
-    
-    i = 0
-    agent_count = 0
-    while i < max_step:
-
-        # Remember the states
-        agents[agent_count].remember_state(s)
-
-        # Choose an action
-        a = agents[agent_count].act(s)
-        
-        # Take the action, and get the reward from environment
-        s_next,r,done = env.step(a,agents[agent_count])
-
-        # Tweak the reward
-        r = -1 * r
-        
-        if verbose: print(s_next,r,done)
-        
-        # Update our knowledge in the Q-table
-        agents[agent_count].train(s,a,r,s_next)
-        
-        # Update the caches
-        episode_reward += r
-        s = s_next
-        
-        # If the episode is terminated
-        i += 1
-        agent_count += 1
-        agent_count %= len(agents)
-        if done:
-            break
-            
-    return env,agents,episode_reward
-
-
-
-
-def run_n_episodes_ma(env,agents,name="training.gif",n_episodes=1000,render_each=10,fps=10):
-
-    # Store the rewards
-    rewards = []
-    imgs = []
-
-    # env_min = copy.deepcopy(env)
-        
-    # Experience replay
-    for i in tqdm(range(n_episodes)):
-
-        # Run the episode
-        env,agents,episode_reward = run_episode_ma(env,agents,verbose = 0)
-        if len(rewards)!=0:
-            if max(rewards) < episode_reward:
-                env_min = copy.deepcopy(env)
-        rewards.append(episode_reward)
-        
-        if i % render_each == 0:
-            img = env.render(return_img = True)
-            imgs.append(img)
-
-        
-
-    # Show rewards
-    plt.figure(figsize = (15,3))
-    plt.title("Rewards over training")
-    plt.plot(rewards)
-    plt.show()
-
-    # Save imgs as gif
-    imageio.mimsave(name,imgs,fps = fps)
-
-    return env,agents #,env_min'''
