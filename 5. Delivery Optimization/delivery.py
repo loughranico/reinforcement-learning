@@ -18,7 +18,6 @@ import csv
 from collections import defaultdict
 import pyproj
 
-from collections import defaultdict
 
 
 
