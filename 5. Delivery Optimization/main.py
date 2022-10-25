@@ -36,8 +36,13 @@ def main(args):
 
     run_n_episodes(env,agent,f"training_{num_stops}_stops_{num_trucks}t_{iters}iter.gif",n_episodes = iters)
 
-    env.render()
-    env.extract_csv("test.csv")
+    # env.render()
+
+    if os.path.exists("extraction.csv"):
+        os.remove("extraction.csv")
+    env.extract_csv("extraction.csv")
+
+    
     
     #env_min.render()
 

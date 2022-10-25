@@ -56,19 +56,54 @@ import sys
 sys.path.append("../")
 
 from delivery import *
-env = DeliveryEnvironment(n_stops = 1967, method = "plan")
+# env = DeliveryEnvironment(n_stops = 1967, method = "plan")
 
 
 
 
-env.render()
+# env.render()
 
-print(f"The first stop id: {env.stops}")
-#print(f"Coordinates are: {env.x[env.stops[0]]} {env.y[env.stops[0]]}")
+# print(f"The first stop id: {env.stops}")
+# #print(f"Coordinates are: {env.x[env.stops[0]]} {env.y[env.stops[0]]}")
 
 
-for i in range(4):
-    env.step(i)
-    print(f"Stops visited in step {i}: {env.stops}")
+# for i in range(4):
+#     env.step(i)
+#     print(f"Stops visited in step {i}: {env.stops}")
 
-env.render()
+# env.render()
+
+delivery_file ="./data/pedido.csv"
+deliveries = pd.read_csv(delivery_file)
+
+x_origin = deliveries["lonCarga"]
+y_origin = deliveries["latCarga"]
+
+
+
+
+
+## CDIST
+xy_origin = np.column_stack([x_origin,y_origin])
+
+            
+# create projections, using a mean (lat, lon) for aeqd
+lat_0, lon_0 = np.mean(np.append(xy_origin[:,0], xy_origin[:,0])), np.mean(np.append(xy_origin[:,1], xy_origin[:,1]))
+proj = pyproj.Proj(proj='aeqd', lat_0=lat_0, lon_0=lon_0, x_0=lon_0, y_0=lat_0)
+WGS84 = pyproj.Proj(init='epsg:4326')
+
+# transform coordinates
+projected_c1 = pyproj.transform(WGS84, proj, xy_origin[:,1], xy_origin[:,0])
+projected_c1 = np.column_stack(projected_c1)
+
+# calculate pairwise distances in km with both methods
+sc_dist = cdist(projected_c1, projected_c1)
+
+q_stops = sc_dist/1000 #Metres to KM
+
+print(q_stops)
+
+
+
+for x,y in deliveries["lonCarga","latCarga"]:
+    print(x,y)

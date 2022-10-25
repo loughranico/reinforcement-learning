@@ -21,7 +21,6 @@ import pyproj
 
 
 
-
 plt.style.use("seaborn-dark")
 
 import sys
@@ -105,10 +104,21 @@ class DeliveryEnvironment(object):
             with open(deliveries_file) as f:
                 r = csv.reader(f)
                 i=0
-                for idPedido,lon,lat,lonDes,latDes,categoria,prio, start,end,last in r:
+                for idPedido,lon,lat,lonDes,latDes,categoria,prio,start_time,end_time,last in r:
                     if idPedido != "idPedido":
                         self.pedido_names.append(idPedido)
-                        self.pedido_dict[idPedido] = {"num":i,"name":idPedido,"lonCarga":lon,"latCarga":lat,"lonDescarga":lonDes,"latDescarga":latDes,"daily_worktime":0,"start_date":datetime.strptime("07:00:00 01/08/2022", "%H:%M:%S %d/%m/%Y")}
+                        self.pedido_dict[idPedido] = {"num":i,
+                                                    "name":idPedido,
+                                                    "lonCarga":lon,
+                                                    "latCarga":lat,
+                                                    "lonDescarga":lonDes,
+                                                    "latDescarga":latDes,
+                                                    "categoria":categoria,
+                                                    "start_time":start_time,
+                                                    "end_time":end_time,
+                                                    "lastDay":last,
+                                                    "daily_worktime":0,
+                                                    "start_date":datetime.strptime("07:00:00 01/08/2022", "%H:%M:%S %d/%m/%Y")}
                         i+=1
 
             
@@ -167,6 +177,23 @@ class DeliveryEnvironment(object):
             for idPedido,idCamion in r:
                 if idPedido != "idPedido":
                     self.camion_pedidos[idCamion].append(self.pedido_dict[idPedido]["num"])
+        
+        self.pedido_camiones = defaultdict(list)
+        with open(order_file) as f:
+            r = csv.reader(f)
+
+            for idPedido,idCamion in r:
+                if idPedido != "idPedido":
+                    self.pedido_camiones[idPedido].append(self.truck_dict[idCamion]["num"])
+        
+        self.paradas = defaultdict(list)
+        rest_file ="./data/paradas.csv"
+        with open(rest_file) as f:
+            r = csv.reader(f)
+
+            for idCamion,descanso in r:
+                if idCamion != "idCamion":
+                    self.paradas[idCamion].append(datetime.strptime("00:00:00 "+descanso, "%H:%M:%S %m/%d/%Y").date())
         
 
 
@@ -311,6 +338,11 @@ class DeliveryEnvironment(object):
 
         # Stops placeholder
         self.stops = []
+        self.timed_dels = []
+
+        for key in self.truck_dict.keys():
+            self.truck_dict[key]["daily_worktime"] = 0
+            self.truck_dict[key]["start_date"] = datetime.strptime("07:00:00 01/08/2022", "%H:%M:%S %d/%m/%Y")
 
         # Random first stop
         for i in range(self.n_trucks):
@@ -343,20 +375,99 @@ class DeliveryEnvironment(object):
 
 
         # Keeping times etc.
-        del_time = (reward+delivery_kms)/70*60
-        unload_time = del_time + 90
+        # Tiempos de tránsito 
+        rew_speed = 70
+        deliv_speed = 70
+        if reward > 60: 
+            rew_speed = 100
+        if delivery_kms > 60: 
+            deliv_speed = 100
 
+        rew_time = reward/rew_speed*60
+        deliv_time = delivery_kms/deliv_speed*60
+        
+        del_time = rew_time + deliv_time
+
+
+        # Tiempos de carga
+        idPedido = self.deliveries.idPedido.iloc[new_state[0]]
+        cat = self.pedido_dict[idPedido]["categoria"]
+
+        t_carga = 45
+        if cat == "M1":
+            t_carga = 35
+        elif cat == "M2":
+            t_carga = 20
+        elif cat == "M3":
+            t_carga = 15
+        
+        t_descarga = t_carga
+
+        unload_time = del_time + t_descarga + t_carga
+
+
+        # Truck ID
         truck = self.truck_names[new_state[1]]
 
         if (self.truck_dict[truck]["daily_worktime"]+del_time) >= self.max_worktime:
             self.truck_dict[truck]["daily_worktime"] = del_time
             self.truck_dict[truck]["start_date"] = self.truck_dict[truck]["start_date"].replace(hour=7, minute=0, second=0)
-            self.truck_dict[truck]["start_date"] += timedelta(days=1)
+
+            # Paradas
+            if self.truck_dict[truck]["start_date"].date() + timedelta(days=1) in self.paradas[truck]:
+                if self.truck_dict[truck]["start_date"].date() + timedelta(days=2) in self.paradas[truck]:
+                    self.truck_dict[truck]["start_date"] += timedelta(days=3)
+                else:
+                    self.truck_dict[truck]["start_date"] += timedelta(days=2)
+            else:
+                self.truck_dict[truck]["start_date"] += timedelta(days=1)
 
             end_date = self.truck_dict[truck]["start_date"] + timedelta(minutes=unload_time)
         else:
+            if self.truck_dict[truck]["start_date"].date() in self.paradas[truck]:
+                if self.truck_dict[truck]["start_date"].date() + timedelta(days=1) in self.paradas[truck]:
+                    self.truck_dict[truck]["start_date"] += timedelta(days=2)
+                else:
+                    self.truck_dict[truck]["start_date"] += timedelta(days=1)
             self.truck_dict[truck]["daily_worktime"] += del_time
             end_date = self.truck_dict[truck]["start_date"] + timedelta(minutes=unload_time)
+
+
+        # Penalising lateness
+        idPedido = self.pedido_names[new_state[0]]
+        pedido = self.pedido_dict[idPedido]
+        limit_date = datetime.strptime("23:59:59 "+pedido["lastDay"], "%H:%M:%S %Y-%m-%d")
+        if limit_date < end_date:
+            delta = limit_date - end_date
+            reward += 10#*delta.days
+
+        # Ensure delivery in window
+        start_window = datetime.strptime(pedido["start_time"]+":00 "+str(end_date.year)+"-"+str(end_date.month)+"-"+str(end_date.day), "%H:%M:%S %Y-%m-%d")
+        end_window = datetime.strptime(pedido["end_time"]+":00 "+str(end_date.year)+"-"+str(end_date.month)+"-"+str(end_date.day), "%H:%M:%S %Y-%m-%d")
+        waiting_time = 0
+
+        if start_window.time()>end_date.time():
+            waiting_time = (start_window-end_date).seconds / 60
+            reward += 10
+            
+        elif end_window.time()<end_date.time():
+            late_time = (end_date-end_window).seconds / 60
+            start_window += timedelta(days=1)
+            if start_window.date() + timedelta(days=1) in self.paradas[truck]:
+                if start_window.date() + timedelta(days=2) in self.paradas[truck]:
+                    start_window += timedelta(days=3)
+                else:
+                    start_window += timedelta(days=2)
+            else:
+                start_window += timedelta(days=1)
+            waiting_time = (end_date-start_window).seconds / 60
+            reward += 10
+            end_date = start_window
+
+
+
+
+            
 
 
 
@@ -455,19 +566,24 @@ class DeliveryQAgent(QAgent):
                 a = np.unravel_index(np.argmax(q, axis=None), q.shape)
                 
             else:
-
-                j = np.random.randint(0,self.piece_size)
-
-                idCamion = env.truck_names[j]
-                act_size = np.array(env.camion_pedidos[idCamion])
                 
-                # act_size = np.array(range(self.actions_size))
+                
+                act_size_init = np.array(range(self.actions_size))
                 stat_mem = np.array(self.states_memory)
+                available = np.setdiff1d(act_size_init, stat_mem)
 
-                a_a = np.setdiff1d(act_size, stat_mem)
 
-                i = np.random.randint(0,len(a_a))
-                a = (a_a[i],j)
+                i = np.random.randint(0,len(available))
+
+                idPedido = env.pedido_names[i]
+                ava_trucks = np.array(env.pedido_camiones[idPedido])
+                
+
+                
+
+
+                j = np.random.randint(0,len(ava_trucks))
+                a = (i,ava_trucks[j])
            
         return a
 
