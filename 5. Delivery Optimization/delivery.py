@@ -1,4 +1,5 @@
 # Base Data Science snippet
+import random
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -82,6 +83,14 @@ class DeliveryEnvironment(object):
 
         self.x = xy[:,0]
         self.y = xy[:,1]
+    
+    def generate_replan(self,num_replan):
+        # Generate geographical coordinates
+        self.num_replan = num_replan
+        xy = np.random.rand(self.num_replan,2)*self.max_box
+
+        self.x = np.concatenate((self.x, xy[:,0]), axis=None)
+        self.y = np.concatenate((self.y, xy[:,1]), axis=None)
 
     def _generate_trucks(self):
 
@@ -407,7 +416,25 @@ class DeliveryQAgent(QAgent):
 
             if np.random.rand() > self.epsilon:
                 #a = np.argmax(q)
-                a = np.unravel_index(np.argmax(q, axis=None), q.shape)
+                # a = np.unravel_index(np.argmax(q, axis=None), q.shape)
+                # print(np.argmax(q, axis=None), q.shape)
+                # winner = np.argwhere(q == np.amax(q))
+                # print(winner)
+                # print(winner[0])
+                # print(winner[0][0])
+                # print(winner.flatten().tolist())
+                # print(len(winner))
+                # print(a)
+                # print()
+
+                winner = np.argwhere(q == np.amax(q))
+
+                if len(winner) > 1:
+                    i = random.randrange(len(winner))
+                    a = (winner[i][0],winner[i][1])
+                else:
+                    a = np.unravel_index(np.argmax(q, axis=None), q.shape)
+
                 
                 
                 '''if a == (0,0):
@@ -477,9 +504,9 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
 
         # Run the episode
         env,agent,episode_reward = run_episode(env,agent,verbose = 0)
-        '''if len(rewards)!=0:
+        if len(rewards)!=0:
             if max(rewards) < episode_reward:
-                env_min = copy.deepcopy(env)'''
+                env_min = copy.deepcopy(env)
         rewards.append(episode_reward)
         
         '''if i % render_each == 0:

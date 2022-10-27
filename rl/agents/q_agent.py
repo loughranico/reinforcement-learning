@@ -92,4 +92,11 @@ class QAgent(Agent):
 
         return a
 
+    def expand(self,replan_size):
+        self.replan_size = replan_size
+        q_expanded = np.zeros((self.states_size+1+replan_size,self.actions_size+1+replan_size,self.piece_size))
+        q_expanded[:self.states_size+1,:self.actions_size+1,:self.piece_size] = self.Q
+
+        self.Q = q_expanded
+
 
