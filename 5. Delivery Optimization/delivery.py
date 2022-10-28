@@ -214,7 +214,7 @@ class DeliveryEnvironment(object):
             # create projections, using a mean (lat, lon) for aeqd
             lat_0, lon_0 = np.mean(np.append(xy_dest[:,0], xy_origin[:,0])), np.mean(np.append(xy_dest[:,1], xy_origin[:,1]))
             proj = pyproj.Proj(proj='aeqd', lat_0=lat_0, lon_0=lon_0, x_0=lon_0, y_0=lat_0)
-            WGS84 = pyproj.Proj(init='epsg:4326')
+            WGS84 = pyproj.Proj('epsg:4326')
 
             # transform coordinates
             projected_c1 = pyproj.transform(WGS84, proj, xy_dest[:,1], xy_dest[:,0])
