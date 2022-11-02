@@ -33,7 +33,7 @@ def main(args):
     env = DeliveryEnvironment(n_stops = num_stops,n_trucks = num_trucks,method = "distance")
     agent = DeliveryQAgent(env.observation_space,env.action_space,env.piece_space)
 
-    e,a,env_min = run_n_episodes(env,agent,f"training_{num_stops}_stops_{num_trucks}t_{iters}iter.gif",n_episodes = iters)
+    e,a,env_min = run_n_episodes(env,agent,f"training_{num_stops}_stops_{num_trucks}t_{iters}iter.gif",n_episodes = iters,render_each=iters/100)
 
     # run_n_episodes(env,agent,f"training_{num_stops}_stops_{num_trucks}t_{iters}iter.gif",n_episodes = iters)
 
