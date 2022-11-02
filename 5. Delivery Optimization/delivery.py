@@ -1,4 +1,5 @@
 # Base Data Science snippet
+from collections import defaultdict
 import random
 import pandas as pd
 import numpy as np
@@ -36,11 +37,12 @@ class DeliveryEnvironment(object):
         self.max_box = max_box
         self.stops = []
         self.method = method
+        self.reward = 0
+        np.random.seed(10)
 
         
 
         # Generate stops
-        self._generate_constraints(**kwargs)
         self._generate_stops()
         self._generate_trucks()
         self._generate_q_values()
@@ -49,37 +51,12 @@ class DeliveryEnvironment(object):
         # Initialize first point
         self.reset()
 
-
-    def _generate_constraints(self,box_size = 0.2,traffic_intensity = 5):
-
-        if self.method == "traffic_box":
-
-            x_left = np.random.rand() * (self.max_box) * (1-box_size)
-            y_bottom = np.random.rand() * (self.max_box) * (1-box_size)
-
-            x_right = x_left + np.random.rand() * box_size * self.max_box
-            y_top = y_bottom + np.random.rand() * box_size * self.max_box
-
-            self.box = (x_left,x_right,y_bottom,y_top)
-            self.traffic_intensity = traffic_intensity 
         
 
 
     def _generate_stops(self):
 
-        if self.method == "traffic_box":
-
-            points = []
-            while len(points) < self.n_stops:
-                x,y = np.random.rand(2)*self.max_box
-                if not self._is_in_box(x,y,self.box):
-                    points.append((x,y))
-
-            xy = np.array(points)
-
-        else:
-            # Generate geographical coordinates
-            xy = np.random.rand(self.n_stops,2)*self.max_box
+        xy = np.random.rand(self.n_stops,2)*self.max_box
 
         self.x = xy[:,0]
         self.y = xy[:,1]
@@ -102,6 +79,8 @@ class DeliveryEnvironment(object):
         self.x = np.concatenate((self.x, self.x_base), axis=None)
         self.y = np.concatenate((self.y, self.y_base), axis=None)
 
+        self.last_stop = defaultdict(int)
+
 
 
 
@@ -113,9 +92,6 @@ class DeliveryEnvironment(object):
             xy = np.column_stack([self.x,self.y])
             self.q_stops = cdist(xy,xy)
             # self.q_stops[:,self.n_stops:] = -np.inf
-        elif self.method=="time":
-            self.q_stops = np.random.rand(self.n_stops,self.n_stops)*self.max_box
-            np.fill_diagonal(self.q_stops,0)
         else:
             raise Exception("Method not recognized")
     
@@ -124,7 +100,7 @@ class DeliveryEnvironment(object):
         
         fig = plt.figure(figsize=(7,7))
         ax = fig.add_subplot(111)
-        ax.set_title("Delivery Stops")
+        ax.set_title("Delivery Stops. Cost: "+str(self.reward))
 
         # Show stops
         ax.scatter(self.x[:self.n_stops],self.y[:self.n_stops],c = "black",s = 50)
@@ -158,9 +134,9 @@ class DeliveryEnvironment(object):
                 ax.plot(self.x[t_stops],self.y[t_stops],linewidth=1,linestyle="-")
             
             # Annotate END
-            xy = self._get_xy(initial = False)
-            xytext = xy[0]+0.1,xy[1]-0.05
-            ax.annotate("END",xy=xy,xytext=xytext,weight = "bold")
+            # xy = self._get_xy(initial = False)
+            # xytext = xy[0]+0.1,xy[1]-0.05
+            # ax.annotate("END",xy=xy,xytext=xytext,weight = "bold")
 
 
         if hasattr(self,"box"):
@@ -197,8 +173,10 @@ class DeliveryEnvironment(object):
             f_stop = i + self.n_stops
             f_truck = i
             self.stops.append((f_stop,f_truck))
+            self.last_stop[f_truck] = f_stop
         random_truck = np.random.randint(self.n_trucks)
         truck_stop = random_truck + self.n_stops
+        self.reward = 0
 
         return (truck_stop,random_truck)
 
@@ -206,14 +184,18 @@ class DeliveryEnvironment(object):
     def step(self,destination):
 
         # Get current state
-        state = self._get_state()
+        # state = self._get_state()
         new_state = destination
 
+        prev_stop = self.last_stop[new_state[1]]
+
         # Get reward for such a move
-        reward = self._get_reward(state[0],new_state[0])
+        reward = self._get_reward(prev_stop,new_state[0])
+        self.reward += reward
 
         # Append new_state to stops
         self.stops.append(destination)
+        self.last_stop[new_state[1]] = new_state[0]
         done = len(self.stops) == (self.n_stops+self.n_trucks)
 
         return new_state,reward,done
@@ -251,64 +233,6 @@ class DeliveryEnvironment(object):
                 additional_reward = np.random.rand()
 
             return base_reward + additional_reward
-
-
-    @staticmethod
-    def _calculate_point(x1,x2,y1,y2,x = None,y = None):
-
-        if y1 == y2:
-            return y1
-        elif x1 == x2:
-            return x1
-        else:
-            a = (y2-y1)/(x2-x1)
-            b = y2 - a * x2
-
-            if x is None:
-                x = (y-b)/a
-                return x
-            elif y is None:
-                y = a*x+b
-                return y
-            else:
-                raise Exception("Provide x or y")
-
-
-    def _is_in_box(self,x,y,box):
-        # Get box coordinates
-        x_left,x_right,y_bottom,y_top = box
-        return x >= x_left and x <= x_right and y >= y_bottom and y <= y_top
-
-
-    def _calculate_box_intersection(self,x1,x2,y1,y2,box):
-
-        # Get box coordinates
-        x_left,x_right,y_bottom,y_top = box
-
-        # Intersections
-        intersections = []
-
-        # Top intersection
-        i_top = self._calculate_point(x1,x2,y1,y2,y=y_top)
-        if i_top > x_left and i_top < x_right:
-            intersections.append((i_top,y_top))
-
-        # Bottom intersection
-        i_bottom = self._calculate_point(x1,x2,y1,y2,y=y_bottom)
-        if i_bottom > x_left and i_bottom < x_right:
-            intersections.append((i_bottom,y_bottom))
-
-        # Left intersection
-        i_left = self._calculate_point(x1,x2,y1,y2,x=x_left)
-        if i_left > y_bottom and i_left < y_top:
-            intersections.append((x_left,i_left))
-
-        # Right intersection
-        i_right = self._calculate_point(x1,x2,y1,y2,x=x_right)
-        if i_right > y_bottom and i_right < y_top:
-            intersections.append((x_right,i_right))
-
-        return intersections
 
 
 
@@ -430,7 +354,8 @@ class DeliveryQAgent(QAgent):
                 winner = np.argwhere(q == np.amax(q))
 
                 if len(winner) > 1:
-                    i = random.randrange(len(winner))
+                    # i = random.randrange(len(winner))
+                    i = np.random.randint(len(winner))
                     a = (winner[i][0],winner[i][1])
                 else:
                     a = np.unravel_index(np.argmax(q, axis=None), q.shape)
@@ -499,14 +424,16 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
 
     # Experience replay
     env_min = copy.deepcopy(env)
+    prev_best = -np.inf
         
     for i in tqdm(range(n_episodes)):
 
         # Run the episode
         env,agent,episode_reward = run_episode(env,agent,verbose = 0)
         if len(rewards)!=0:
-            if max(rewards) < episode_reward:
+            if prev_best < episode_reward:
                 env_min = copy.deepcopy(env)
+                prev_best = episode_reward
         rewards.append(episode_reward)
         
         '''if i % render_each == 0:
