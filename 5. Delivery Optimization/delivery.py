@@ -1,4 +1,5 @@
 # Base Data Science snippet
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import List
 import pandas as pd
@@ -45,6 +46,8 @@ class DeliveryEnvironment(object):
         self.max_box = max_box
         self.stops = []
         self.method = method
+        self.reward = 0
+        np.random.seed(10)
 
 
         # Importing the data
@@ -195,6 +198,8 @@ class DeliveryEnvironment(object):
                 if idCamion != "idCamion":
                     self.paradas[idCamion].append(datetime.strptime("00:00:00 "+descanso, "%H:%M:%S %m/%d/%Y").date())
         
+        self.last_stop = defaultdict(int)
+        
 
 
 
@@ -251,7 +256,7 @@ class DeliveryEnvironment(object):
         
         fig = plt.figure(figsize=(7,7))
         ax = fig.add_subplot(111)
-        ax.set_title("Delivery Stops")
+        ax.set_title("Delivery Stops. Cost: "+str(self.reward))
 
         # Show stops
         if self.method == "plan":
@@ -349,8 +354,10 @@ class DeliveryEnvironment(object):
             f_stop = i + self.n_stops
             f_truck = i
             self.stops.append((f_stop,f_truck))
+            self.last_stop[f_truck] = f_stop
         random_truck = np.random.randint(self.n_trucks)
         truck_stop = random_truck + self.n_stops
+        self.reward = 0
 
         return (truck_stop,random_truck)
 
@@ -359,17 +366,21 @@ class DeliveryEnvironment(object):
     def step(self,destination):
 
         # Get current state
-        state = self._get_state()
+        # state = self._get_state()
         new_state = destination
 
+        prev_stop = self.last_stop[new_state[1]]
+
         # Get reward for such a move
-        reward = self._get_reward(state[0],new_state[0])
+        reward = self._get_reward(prev_stop,new_state[0])
+        self.reward += reward
 
         # Get reward for such a move
         delivery_kms = self._get_reward(new_state[0],new_state[0])
 
         # Append new_state to stops
         self.stops.append(destination)
+        self.last_stop[new_state[1]] = new_state[0]
         done = len(self.stops) == (self.n_stops+self.n_trucks)
 
 
@@ -563,7 +574,16 @@ class DeliveryQAgent(QAgent):
 
             if np.random.rand() > self.epsilon:
                 #a = np.argmax(q)
-                a = np.unravel_index(np.argmax(q, axis=None), q.shape)
+                # a = np.unravel_index(np.argmax(q, axis=None), q.shape)
+
+                winner = np.argwhere(q == np.amax(q))
+
+                if len(winner) > 1:
+                    # i = random.randrange(len(winner))
+                    i = np.random.randint(len(winner))
+                    a = (winner[i][0],winner[i][1])
+                else:
+                    a = np.unravel_index(np.argmax(q, axis=None), q.shape)
                 
             else:
                 
@@ -655,16 +675,18 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
     rewards = []
     imgs = []
 
-    # env_min = copy.deepcopy(env)
+    env_min = copy.deepcopy(env)
+    prev_best = -np.inf
         
     # Experience replay
     for i in tqdm(range(n_episodes)):
 
         # Run the episode
         env,agent,episode_reward = run_episode(env,agent,verbose = 0)
-        '''if len(rewards)!=0:
-            if max(rewards) < episode_reward:
-                env_min = copy.deepcopy(env)'''
+        if len(rewards)!=0:
+            if prev_best < episode_reward:
+                env_min = copy.deepcopy(env)
+                prev_best = episode_reward
         rewards.append(episode_reward)
         
         '''if i % render_each == 0:
@@ -682,7 +704,7 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
     # # Save imgs as gif
     # imageio.mimsave(name,imgs,fps = fps)
 
-    return env,agent #,env_min
+    return env,agent,env_min
 
 
 

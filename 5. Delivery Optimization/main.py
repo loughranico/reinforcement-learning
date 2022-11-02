@@ -32,11 +32,11 @@ def main(args):
     env = DeliveryEnvironment(n_stops = num_stops,n_trucks = num_trucks,method = "plan")
     agent = DeliveryQAgent(env.observation_space,env.action_space,env.piece_space)
 
-    #e,a,env_min = run_n_episodes(env,agent,"training_100_stops.gif")
+    e,a,env_min = run_n_episodes(env,agent,f"training_{num_stops}_stops_{num_trucks}t_{iters}iter.gif",n_episodes = iters)
 
-    run_n_episodes(env,agent,f"training_{num_stops}_stops_{num_trucks}t_{iters}iter.gif",n_episodes = iters)
+    # run_n_episodes(env,agent,f"training_{num_stops}_stops_{num_trucks}t_{iters}iter.gif",n_episodes = iters)
 
-    # env.render()
+    env.render()
 
     if os.path.exists("extraction.csv"):
         os.remove("extraction.csv")
@@ -44,7 +44,7 @@ def main(args):
 
     
     
-    #env_min.render()
+    env_min.render()
 
     
     # ###Profiling for possible paralization###
