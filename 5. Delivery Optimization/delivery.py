@@ -32,9 +32,9 @@ from rl.agents.q_agent import QAgent
 
 
 class DeliveryEnvironment(object):
-    def __init__(self,n_stops = 10,n_trucks = 2,max_box = 10,method = "distance",**kwargs):
+    def __init__(self,n_stops = 10,n_trucks = 2,max_box = 10,method = "distance",data_size = "tiny",**kwargs):
 
-        print(f"Initialized Delivery Environment with {n_stops} random stops")
+        print(f"Initialized Delivery Environment with {n_stops} deliveries")
         print(f"Target metric for optimization is {method}")
 
         # Initialization
@@ -49,13 +49,35 @@ class DeliveryEnvironment(object):
         self.reward = 0
         np.random.seed(10)
 
+        if data_size == "tiny":
+            self.data_folder = "./data_tiny/"
+        elif data_size == "small":
+            self.data_folder = "./data_small/"
+        elif data_size == "medium":
+            self.data_folder = "./data_med/"
+        elif data_size == "large":
+            self.data_folder = "./data_large/"
+        elif data_size == "tiny2":
+            self.data_folder = "./data_tiny2/"
+        elif data_size == "small2":
+            self.data_folder = "./data_small2/"
+        elif data_size == "medium2":
+            self.data_folder = "./data_med2/"
+        elif data_size == "large2":
+            self.data_folder = "./data_large2/"
+        elif data_size == "total":
+            self.data_folder = "./data/"
+        else:
+            raise Exception("Data size not recognized")
+
 
         # Importing the data
         # Potentially need trucks in dict in the main when creating agents 
-        truck_file ="./data/camion.csv"
+        truck_file =self.data_folder+"camion.csv"
+        print(truck_file)
         self.trucks = pd.read_csv(truck_file)
 
-        delivery_file ="./data/pedido.csv"
+        delivery_file =self.data_folder+"pedido.csv"
         self.deliveries = pd.read_csv(delivery_file)
 
         # Generate stops
@@ -103,7 +125,7 @@ class DeliveryEnvironment(object):
             # lambda as default_factory argument
             self.pedido_dict = defaultdict(dict)
             self.pedido_names = []
-            deliveries_file ="./data/pedido.csv"
+            deliveries_file =self.data_folder+"pedido.csv"
             with open(deliveries_file) as f:
                 r = csv.reader(f)
                 i=0
@@ -162,7 +184,7 @@ class DeliveryEnvironment(object):
         # lambda as default_factory argument
         self.truck_dict = defaultdict(dict)
         self.truck_names = []
-        truck_file ="./data/camion.csv"
+        truck_file =self.data_folder+"camion.csv"
         with open(truck_file) as f:
             r = csv.reader(f)
             i=0
@@ -173,7 +195,7 @@ class DeliveryEnvironment(object):
                     i+=1
 
         self.camion_pedidos = defaultdict(list)
-        order_file ="./data/camiones_pedido.csv"
+        order_file =self.data_folder+"camiones_pedido.csv"
         with open(order_file) as f:
             r = csv.reader(f)
 
@@ -190,7 +212,7 @@ class DeliveryEnvironment(object):
                     self.pedido_camiones[idPedido].append(self.truck_dict[idCamion]["num"])
         
         self.paradas = defaultdict(list)
-        rest_file ="./data/paradas.csv"
+        rest_file =self.data_folder+"paradas.csv"
         with open(rest_file) as f:
             r = csv.reader(f)
 
@@ -238,7 +260,7 @@ class DeliveryEnvironment(object):
     
     def extract_csv(self,file_name):
 
-        fieldnames = ['idCamion','idPedido', 'start_date', 'end_date']
+        fieldnames = ['idCamion','idPedido', 'start_date', 'end_date','late']
 
         with open(file_name, 'w', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
@@ -445,12 +467,10 @@ class DeliveryEnvironment(object):
 
 
         # Penalising lateness
+        late = 0
         idPedido = self.pedido_names[new_state[0]]
         pedido = self.pedido_dict[idPedido]
-        limit_date = datetime.strptime("23:59:59 "+pedido["lastDay"], "%H:%M:%S %Y-%m-%d")
-        if limit_date < end_date:
-            delta = limit_date - end_date
-            reward += 10#*delta.days
+        
 
         # Ensure delivery in window
         start_window = datetime.strptime(pedido["start_time"]+":00 "+str(end_date.year)+"-"+str(end_date.month)+"-"+str(end_date.day), "%H:%M:%S %Y-%m-%d")
@@ -474,6 +494,13 @@ class DeliveryEnvironment(object):
             waiting_time = (end_date-start_window).seconds / 60
             reward += 10
             end_date = start_window
+        
+        # Penalising lateness
+        limit_date = datetime.strptime("23:59:59 "+pedido["lastDay"], "%H:%M:%S %Y-%m-%d")
+        if limit_date < end_date:
+            delta =  end_date - limit_date
+            reward += 100*(delta.days+1)
+            late = delta.days+1
 
 
 
@@ -482,7 +509,7 @@ class DeliveryEnvironment(object):
 
 
 
-        self.timed_dels.append([truck,self.deliveries.idPedido.iloc[new_state[0]],self.truck_dict[truck]["start_date"],end_date])
+        self.timed_dels.append([truck,self.deliveries.idPedido.iloc[new_state[0]],self.truck_dict[truck]["start_date"],end_date,late])
 
         self.truck_dict[truck]["start_date"]=end_date
 
