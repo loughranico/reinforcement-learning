@@ -17,6 +17,28 @@ import pstats
 
 #env_min.render()
 
+def title_csv():
+
+        fieldnames = ['dataset','km', 'tiempo', 'pedidosTardes','experimento']
+        file_name = 'RL_benchmark_reduced.csv'
+
+        with open(file_name, 'w', encoding='UTF8', newline='') as f:
+            writer = csv.writer(f)
+
+            # write the header
+            writer.writerow(fieldnames)
+
+def results_csv(dataset,km, tiempo, pedidosTardes,experimento):
+
+        file_name = 'RL_benchmark_reduced.csv'
+
+        with open(file_name, 'w', encoding='UTF8', newline='') as f:
+            writer = csv.writer(f)
+
+
+            # write multiple rows
+            writer.writerows(self.timed_dels)
+
 def main(args):
     
     # ### Profiling ###
@@ -29,6 +51,7 @@ def main(args):
     num_trucks = 107
     iters = int(args[0])
     data_size = str(args[1])
+    experiment = str(args[2])
 
     if data_size == "tiny":
         num_stops = 50
@@ -72,21 +95,24 @@ def main(args):
     env = DeliveryEnvironment(n_stops = num_stops,n_trucks = num_trucks,method = "plan",data_size = data_size)
     agent = DeliveryQAgent(env.observation_space,env.action_space,env.piece_space)
 
-    e,a,env_min,exect = run_n_episodes(env,agent,f"training_{num_stops}_stops_{num_trucks}t_{iters}iter.gif",n_episodes = iters)
+    e,a,env_min,exec_time = run_n_episodes(env,agent,f"training_{num_stops}_stops_{num_trucks}t_{iters}iter.gif",n_episodes = iters)
 
     # run_n_episodes(env,agent,f"training_{num_stops}_stops_{num_trucks}t_{iters}iter.gif",n_episodes = iters)
 
-    env.render()
+    # env.render()
 
-    if os.path.exists(data_folder+"extraction.csv"):
-        os.remove(data_folder+"extraction.csv")
-    env_min.extract_csv(data_folder+"extraction.csv")
+    if os.path.exists(data_folder+"extraction_"+data_size+"_"+experiment+".csv"):
+        os.remove(data_folder+"extraction_"+data_size+"_"+experiment+".csv")
+    env_min.extract_csv(data_folder+"extraction_"+data_size+"_"+experiment+".csv")
+
+    if not os.path.exists('RL_benchmark_reduced.csv'):
+        title_csv()
+
+    results_csv(data_size,env_min.reward,exec_time,env_min.late_deliveries,experiment)
 
     
     
-    env_min.render()
-
-    
+    # env_min.render()
 
     
     # ###Profiling for possible paralization###
@@ -96,7 +122,7 @@ def main(args):
     # ps.print_stats(10)
     # #########################################
     
-    
+
 
 
 if __name__ == '__main__':

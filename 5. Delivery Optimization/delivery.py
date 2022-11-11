@@ -47,6 +47,7 @@ class DeliveryEnvironment(object):
         self.stops = []
         self.method = method
         self.reward = 0
+        self.late_deliveries = 0
         np.random.seed(10)
 
         if data_size == "tiny":
@@ -86,7 +87,7 @@ class DeliveryEnvironment(object):
         if self.method == "plan":
             self._generate_trucks()
         self._generate_q_values()
-        self.render()
+        # self.render()
 
         # Initialize first point
         self.reset()
@@ -380,6 +381,7 @@ class DeliveryEnvironment(object):
         random_truck = np.random.randint(self.n_trucks)
         truck_stop = random_truck + self.n_stops
         self.reward = 0
+        self.late_deliveries = 0
 
         return (truck_stop,random_truck)
 
@@ -501,6 +503,7 @@ class DeliveryEnvironment(object):
             delta =  end_date - limit_date
             reward += 100*(delta.days+1)
             late = delta.days+1
+            self.late_deliveries += 1
 
 
 
@@ -705,23 +708,26 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
     env_min = copy.deepcopy(env)
     prev_best = -np.inf
         
+    exec_time = ""
     # Experience replay
-    for i in tqdm(range(n_episodes)):
+    with tqdm(range(n_episodes)) as t:
+        for i in t:
 
-        # Run the episode
-        env,agent,episode_reward = run_episode(env,agent,verbose = 0)
-        if len(rewards)!=0:
-            if prev_best < episode_reward:
-                env_min = copy.deepcopy(env)
-                prev_best = episode_reward
-        rewards.append(episode_reward)
+            # Run the episode
+            env,agent,episode_reward = run_episode(env,agent,verbose = 0)
+            if len(rewards)!=0:
+                if prev_best < episode_reward:
+                    env_min = copy.deepcopy(env)
+                    prev_best = episode_reward
+            rewards.append(episode_reward)
+            exec_time = t.format_interval(t.format_dict['elapsed'])
+            
+            '''if i % render_each == 0:
+                img = env.render(return_img = True)
+                imgs.append(img)'''
+
         
-        '''if i % render_each == 0:
-            img = env.render(return_img = True)
-            imgs.append(img)'''
-
-        
-
+    
     # Show rewards
     plt.figure(figsize = (15,3))
     plt.title("Rewards over training")
@@ -730,8 +736,23 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
 
     # # Save imgs as gif
     # imageio.mimsave(name,imgs,fps = fps)
+    tiempo = 0
 
-    return env,agent,env_min
+    ex = exec_time.split(":")
+    if len(ex) == 2:
+        sec = int(ex[-1])
+        minu = int(ex[-2])
+        min_sec = minu * 60
+        tiempo = min_sec + sec
+    if len(ex) == 3:
+        sec = int(ex[-1])
+        minu = int(ex[-2])
+        hour = int(ex[-3])
+        min_sec = minu * 60
+        hour_sec = hour * 3600
+        tiempo = hour_sec + min_sec + sec
+
+    return env,agent,env_min,tiempo
 
 
 
