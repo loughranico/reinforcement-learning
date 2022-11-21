@@ -1,0 +1,9 @@
+dataset,km,tiempo,pedidosTardes,experimento
+tiny2,3975.860498841391,960,0,tiempo_fijo
+small2,12142.539573382594,841,6,tiempo_fijo
+medium2,69638.35439672136,929,80,tiempo_fijo
+large2,105623.03254923843,765,119,tiempo_fijo
+tiny2,3964.027915638907,1982,0,mejor_coste
+small2,12492.568811642126,8392,3,mejor_coste
+medium2,68492.15393835159,68565,76,mejor_coste
+large2,102495.59141787747,73323,101,mejor_coste

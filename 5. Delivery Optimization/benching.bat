@@ -1,7 +1,7 @@
 @echo off
 title Hehe
 echo Willkommen 
-python main_benchmarking.py 100000 tiny2 tiempo_fijo
+python main_benchmarking.py 117500 tiny2 tiempo_fijo
 python main_benchmarking.py 50000 small2 tiempo_fijo
 python main_benchmarking.py 6000 medium2 tiempo_fijo
 python main_benchmarking.py 2250 large2 tiempo_fijo

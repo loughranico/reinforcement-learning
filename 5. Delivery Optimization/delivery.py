@@ -728,11 +728,11 @@ def run_n_episodes(env,agent,name="training.gif",n_episodes=1000,render_each=10,
 
         
     
-    # Show rewards
-    plt.figure(figsize = (15,3))
-    plt.title("Rewards over training")
-    plt.plot(rewards)
-    plt.show()
+    # # Show rewards
+    # plt.figure(figsize = (15,3))
+    # plt.title("Rewards over training")
+    # plt.plot(rewards)
+    # plt.show()
 
     # # Save imgs as gif
     # imageio.mimsave(name,imgs,fps = fps)

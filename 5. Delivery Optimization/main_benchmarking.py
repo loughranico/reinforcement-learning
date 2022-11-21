@@ -32,12 +32,12 @@ def results_csv(dataset,km, tiempo, pedidosTardes,experimento):
 
         file_name = 'RL_benchmark_reduced.csv'
 
-        with open(file_name, 'w', encoding='UTF8', newline='') as f:
+        with open(file_name, 'a', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
 
 
             # write multiple rows
-            writer.writerows(self.timed_dels)
+            writer.writerow([dataset,km, tiempo, pedidosTardes,experimento])
 
 def main(args):
     
@@ -105,7 +105,9 @@ def main(args):
         os.remove(data_folder+"extraction_"+data_size+"_"+experiment+".csv")
     env_min.extract_csv(data_folder+"extraction_"+data_size+"_"+experiment+".csv")
 
-    if not os.path.exists('RL_benchmark_reduced.csv'):
+    if os.path.exists('RL_benchmark_reduced.csv'):
+        print("file exists")
+    else:
         title_csv()
 
     results_csv(data_size,env_min.reward,exec_time,env_min.late_deliveries,experiment)
